@@ -3,7 +3,9 @@ module Field
 open System.IO
 open Serilog
 
-let readUV name t =
+type Field = (single array) array
+
+let readUV name t : Field =
     let filename = sprintf "%s-%d.dat" name t
     File.ReadAllText filename
     |> fun s -> s.Split '\n'

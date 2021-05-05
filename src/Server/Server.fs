@@ -85,6 +85,7 @@ let test () =
     |> Array.iter (printfn "%A")
     ()
 
-test ()
+// test ()
+Advect.runSimulation () |> ignore
 // Field.test ()
 // run app

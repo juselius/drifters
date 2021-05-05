@@ -4,14 +4,14 @@ open Grid
 
 type Particle = {
     Pos : single * single
-    Age : int
+    Age : single
     Elem: int
 }
 
 let createParticle grid p =
     {
         Pos = p
-        Age = 0
+        Age = 0.0f
         Elem =
             findElement grid p
             |> Option.defaultValue -1

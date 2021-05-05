@@ -8,9 +8,9 @@
   <ItemGroup>
     <Compile Include="Settings.fs" />
     <Compile Include="Field.fs" />
-    <Compile Include="Advect.fs" />
     <Compile Include="Grid.fs" />
     <Compile Include="Particle.fs" />
+    <Compile Include="Advect.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
   <ItemGroup>

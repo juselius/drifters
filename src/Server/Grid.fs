@@ -91,7 +91,6 @@ let pointInsideElem grid (x, y, z) p =
     neg && pos |> not
 
 let findElement grid p =
-    printfn "! %A" p
     grid.Elem
     |> Array.fold (fun a e ->
         let n, found = a
@@ -139,7 +138,7 @@ let readGrid (filename: string) =
         pointInsideElem grid e  p |> sprintf "%A" |> Log.Debug
         findElement grid p |> sprintf "%A" |> Log.Debug
     // else ()
-    debug ()
+    // debug ()
     grid
 
 let printBBox grid =
