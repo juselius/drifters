@@ -32,7 +32,7 @@ let init () : Model * Cmd<Msg> =
 let addTodo model =
         let todo = Todo.create model.Input
         let decoder : Decoder<Todo> = Decode.Auto.generateDecoder ()
-        let post data =
+        let post (data : Todo) =
             Fetch.post (url="/api/addTodo", data = data, decoder = decoder)
         let cmd = Cmd.OfPromise.perform post todo AddedTodo
         { model with Input = "" }, cmd

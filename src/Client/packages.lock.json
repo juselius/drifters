@@ -2,6 +2,15 @@
   "version": 1,
   "dependencies": {
     ".NETCoreApp,Version=v5.0": {
+      "Elmish": {
+        "type": "Direct",
+        "requested": "[3.1.0, )",
+        "resolved": "3.1.0",
+        "contentHash": "AwXmBx+dIMWsUOpFjjqZ4HZ71nGE0gMpy0iEox2ZZKis/pqLrhU49qnyB+05OEWjonwS0zfAAAPchV84y6qp5w==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2"
+        }
+      },
       "Fable.Core": {
         "type": "Direct",
         "requested": "[3.2.6, )",
@@ -9,6 +18,42 @@
         "contentHash": "ny9YV3P41TMc6QF/YzGRk9DUqimhjm9HxeRyZch7wsHoZtyBfkcvzAcFDn7APBqO59jJzvg1n+RIG3aJMRtLdg==",
         "dependencies": {
           "FSharp.Core": "4.7.2"
+        }
+      },
+      "Fable.Elmish.Debugger": {
+        "type": "Direct",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "/Ti2zlhbT3sYU1ps8MBPE2oSVLqX7kctlozknOaI3yUrrj47ZlHW8RmtbIMRHjC5b3tyu+YHpC50zTzXRt1ShQ==",
+        "dependencies": {
+          "FSharp.Core": "4.7.0",
+          "Fable.Core": "3.1.5",
+          "Fable.Elmish": "3.0.0",
+          "Thoth.Json": "4.0.0"
+        }
+      },
+      "Fable.Elmish.HMR": {
+        "type": "Direct",
+        "requested": "[4.1.0, )",
+        "resolved": "4.1.0",
+        "contentHash": "JGKiA28wBunqZ2GQ5BbAA0a5wUppmwlAFM8BfmYUqzDkEtrVUDPq86sKzLTFkU3Xg8PPNIl+/6/J73+kkTpuaQ==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Core": "3.0.0",
+          "Fable.Elmish.Browser": "3.0.4",
+          "Fable.Elmish.React": "3.0.1"
+        }
+      },
+      "Fable.Elmish.React": {
+        "type": "Direct",
+        "requested": "[3.0.1, )",
+        "resolved": "3.0.1",
+        "contentHash": "4VG0iY/Qdz0DR1G9VkwsYY+iDcLMnTUYV0h8LoJluvgfoHUe1BFcyK+C01MU5e15SZzHtRMdTbNcEeG3kPBcrQ==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Core": "3.0.0",
+          "Fable.Elmish": "3.0.0",
+          "Fable.React": "5.1.0"
         }
       },
       "Fable.FontAwesome.Free": {
@@ -149,6 +194,17 @@
         "dependencies": {
           "FSharp.Core": "4.6.2",
           "Fable.Core": "3.0.0"
+        }
+      },
+      "Fable.Elmish.Browser": {
+        "type": "Transitive",
+        "resolved": "3.0.4",
+        "contentHash": "ISrc1kl9Q0xvSgGl3zT7Xd7mFZqYY9kczV8MBW2/KX/V7hANWRgsEL9miZFEp7SsIjuwQJKe5EYSKbWjgW7J8A==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Browser.Dom": "1.0.0",
+          "Fable.Core": "3.0.0",
+          "Fable.Elmish": "3.0.0"
         }
       },
       "Fable.Fetch": {
