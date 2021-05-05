@@ -59,7 +59,7 @@ let configureSerilog () =
         .WriteTo.Console()
         .CreateLogger()
 
-let serilog logger =
+let serilog (logger : ILoggingBuilder) =
     logger
         .SetMinimumLevel(LogLevel.Information)
         .AddSerilog() |> ignore
