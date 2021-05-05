@@ -3,6 +3,8 @@ module Index
 open Elmish
 open Feliz
 open Feliz.Bulma
+open Thoth.Fetch
+open Thoth.Json
 open Shared
 
 type Model = {
@@ -19,33 +21,33 @@ type Msg =
 
 let init () : Model * Cmd<Msg> =
     let model = { Todos = []; Input = "" }
-    promise {
-        let! res = Fetch.fetchAs (url="/api/getTodos", decoder = decoder)
-        dispatch (GotTodos res)
-    }
+    let decoder : Decoder<Todo list> = Decode.Auto.generateDecoder ()
+    let get () =
+        Fetch.fetchAs (url="/api/getTodos", decoder = decoder)
     let cmd =
-        Cmd.OfAsync.perform todosApi.getTodos () GotTodos
+        Cmd.OfPromise.perform get () GotTodos
 
     model, cmd
+
+let addTodo model =
+        let todo = Todo.create model.Input
+        let decoder : Decoder<Todo> = Decode.Auto.generateDecoder ()
+        let post data =
+            Fetch.post (url="/api/addTodo", data = data, decoder = decoder)
+        let cmd = Cmd.OfPromise.perform post todo AddedTodo
+        { model with Input = "" }, cmd
+
+let addedTodo model todo =
+        { model with
+              Todos = model.Todos @ [ todo ]
+        }, Cmd.none
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     | GotTodos todos -> { model with Todos = todos }, Cmd.none
     | SetInput value -> { model with Input = value }, Cmd.none
-    | AddTodo ->
-        let todo = Todo.create model.Input
-
-        let cmd =
-            Cmd.OfAsync.perform todosApi.addTodo todo AddedTodo
-
-        { model with Input = "" }, cmd
-    | AddedTodo todo ->
-        { model with
-              Todos = model.Todos @ [ todo ] },
-        Cmd.none
-
-open Feliz
-open Feliz.Bulma
+    | AddTodo -> addTodo model
+    | AddedTodo todo -> addedTodo model todo
 
 let navBrand =
     Bulma.navbarBrand.div [
