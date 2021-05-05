@@ -6,8 +6,11 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Grid.fs" />
     <Compile Include="Settings.fs" />
+    <Compile Include="Field.fs" />
+    <Compile Include="Advect.fs" />
+    <Compile Include="Grid.fs" />
+    <Compile Include="Particle.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
   <ItemGroup>

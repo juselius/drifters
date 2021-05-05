@@ -61,7 +61,7 @@ let configureSerilog () =
 
 let serilog (logger : ILoggingBuilder) =
     logger
-        .SetMinimumLevel(LogLevel.Information)
+        .SetMinimumLevel(LogLevel.Debug)
         .AddSerilog() |> ignore
 
 let app =
@@ -78,7 +78,13 @@ let app =
     }
 
 let test () =
-    Grid.readGrid () |> ignore
+    let p = 438441.812500f, 7548383.500000f
+    let grid = Grid.readGrid appsettings.gridFile
+    Grid.printBBox grid
+    Particle.initParticles grid 100 p
+    |> Array.iter (printfn "%A")
+    ()
 
 test ()
+// Field.test ()
 // run app

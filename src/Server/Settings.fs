@@ -5,7 +5,9 @@ open Thoth.Json.Net
 open Serilog
 
 type Settings = {
-    ExampleSetting: string
+    exampleSetting: string
+    gridFile: string
+    uvName: string
 }
 
 let tryGetEnv = System.Environment.GetEnvironmentVariable >> function null | "" -> None | x -> Some x
