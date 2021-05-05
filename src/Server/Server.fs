@@ -77,4 +77,8 @@ let app =
         logging serilog
     }
 
-run app
+let test () =
+    Grid.readGrid () |> ignore
+
+test ()
+// run app
