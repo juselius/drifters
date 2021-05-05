@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "fable": {
+      "version": "3.1.15",
+      "commands": [
+        "fable"
+      ]
+    },
+    "fantomas-tool": {
+      "version": "4.4.0",
+      "commands": [
+        "fantomas"
+      ]
+    }
+  }
+}
