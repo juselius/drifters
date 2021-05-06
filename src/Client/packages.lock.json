@@ -78,6 +78,19 @@
           "Fable.Core": "3.1.5"
         }
       },
+      "Fable.ReactLeaflet": {
+        "type": "Direct",
+        "requested": "[1.0.1, )",
+        "resolved": "1.0.1",
+        "contentHash": "kRt4y2BW34y0zCKFk76HC198iQWsOV4cGqIP6wWF5P8UMVBf1tTTnx+/prjl9K0mYaqZKwUYdm6aVyEnxaGS4Q==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Core": "3.0.0",
+          "Fable.Geojson": "1.0.0",
+          "Fable.Leaflet": "1.0.0",
+          "Fable.React": "5.1.0"
+        }
+      },
       "Feliz": {
         "type": "Direct",
         "requested": "[1.43.0, )",
@@ -225,6 +238,26 @@
         "dependencies": {
           "Fable.Core": "3.0.0",
           "Fable.React": "5.1.0"
+        }
+      },
+      "Fable.Geojson": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "HUGLr7EkKMzjr+W/FJrm7yjMqf4A7bYrnIBMI9p36oon9hrqxsow8T5WRldV6GGP3CezbUnSulck93xJkxr31g==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Core": "3.0.0"
+        }
+      },
+      "Fable.Leaflet": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "SAHGQiuGBCZigzqgfHXJ0cAuEjG8A5xD4SJI5yi7B8bj2Z3Wgyhwtx21EBZ2M+/QIll+Z6nkcjM1BuNBEqQDPQ==",
+        "dependencies": {
+          "FSharp.Core": "4.6.2",
+          "Fable.Browser.Dom": "1.0.0",
+          "Fable.Core": "3.0.0",
+          "Fable.Geojson": "1.0.0"
         }
       },
       "Fable.Promise": {

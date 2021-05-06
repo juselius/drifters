@@ -2,14 +2,22 @@ module Advect
 
 open Serilog
 
+open System
 open Grid
 open Field
 open Particle
 open Settings
 open Shared
 
+let fromLonLat (x: float, y: float) =
+    let utm = ProjNet.CoordinateSystems.ProjectedCoordinateSystem.WGS84_UTM(33,true)
+    let wgs = ProjNet.CoordinateSystems.GeographicCoordinateSystem.WGS84
+    let f = ProjNet.CoordinateSystems.Transformations.CoordinateTransformationFactory()
+    let transform = f.CreateFromCoordinateSystems(wgs, utm)
+    transform.MathTransform.Transform(x, y).ToTuple() |> fun (a,b) -> b, a
+
 let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
-    let x, y = p.Pos
+    let x, y = fromLonLat p.Pos
     let e = grid.Elem.[p.Elem]
     let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]
     let pos = x + u * dt, y + v * dt
@@ -41,7 +49,7 @@ let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
         ) -1
         |> fun e ->
             if e < 0 then
-                let dt' = dt / 2.0f
+                let dt' = dt / 2.0
                 move grid field dt' p
             else
                 {
@@ -52,19 +60,21 @@ let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
 
 let advect uv dt grid particles =
     particles
-    |> Array.filter (fun x -> x.Age >= 0.0f)
+    |> Array.filter (fun x -> x.Age >= 0.0)
     |> Array.map (move grid uv dt)
 
-let runSimulation (dt: single) time =
-    let p = 438441.812500f, 7548383.500000f
-    let grid = Grid.readGrid appsettings.grid
+let runSimulation (dt: float) time =
+    // let p = 438441.812500, 7548383.500000
+    let p = (68.05, 13.6)
+    let grid = readGrid appsettings.grid
     let particles = initParticles grid 1000 p
 
-    Array.unfold (fun (t, uv, p) ->
+    Array.unfold (fun (t, uv, (p: Particle array)) ->
+        printfn "%A" p.Length
         let uv' =
-            let t' = (t - t % 86400f) / 84600f  |> fun x -> t - x * 84600f
-            if (t' % 3600.0f) = 0.0f && t' < time then
-                let n = t' / 3600.0f |> int
+            let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
+            if (t' % 3600.0) = 0.0 && t' < time then
+                let n = t' / 3600.0 |> int
                 sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
                 readUV appsettings.uv n
             else uv
@@ -73,4 +83,8 @@ let runSimulation (dt: single) time =
             let p' = advect uv' dt grid p
             Some (p', (t + dt, uv', p'))
         else None
-    ) (0.0f , [||], particles)
+    ) (0.0, [||], particles)
+    |> fun x ->
+        printfn "%A" x.[0].Length
+        printfn "%A" particles.Length
+        x

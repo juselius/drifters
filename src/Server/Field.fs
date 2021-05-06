@@ -3,7 +3,7 @@ module Field
 open System.IO
 open Serilog
 
-type Field = (single array) array
+type Field = (float array) array
 
 let readUV name t : Field =
     let filename = sprintf "%s-%d.dat" name t
@@ -11,7 +11,7 @@ let readUV name t : Field =
     |> fun s -> s.Split '\n'
     |> Array.map (fun s ->
         s.Split ' '
-        |> Array.map single
+        |> Array.map float
     )
 
 let test () =

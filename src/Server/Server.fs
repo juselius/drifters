@@ -19,28 +19,28 @@ open Settings
 //     }
 
 let grid = Grid.readGrid appsettings.grid
-let tracks = Advect.runSimulation appsettings.dt (25.0f * 3600.0f)
+let frames = Advect.runSimulation appsettings.dt (25.0 * 3600.0)
 
 let private getGrid = json grid
-let private getTrack n = json tracks.[n]
-let private getNTracks = json tracks.Length
+let private getFrame n = json frames.[n]
+let private getNumFrames = json frames.Length
 
 let webApp =
     GET >=> choose [
         route "/api/getGrid" >=> getGrid
-        route "/api/getNTracks" >=> getNTracks
-        routef "/api/getTrack/%i" getTrack
+        route "/api/getNumFrames" >=> getNumFrames
+        routef "/api/getFrame/%i" getFrame
     ]
 
 let configureSerilog () =
     LoggerConfiguration()
-        .MinimumLevel.Debug()
+        .MinimumLevel.Information()
         .WriteTo.Console()
         .CreateLogger()
 
 let serilog (logger : ILoggingBuilder) =
     logger
-        .SetMinimumLevel(LogLevel.Debug)
+        .SetMinimumLevel(LogLevel.Information)
         .AddSerilog() |> ignore
 
 let app =
@@ -57,7 +57,8 @@ let app =
     }
 
 let test () =
-    let p = 438441.812500f, 7548383.500000f
+    // let p = 438441.812500, 7548383.500000
+    let p = (68.05, 13.6)
     let grid = Grid.readGrid appsettings.grid
     Grid.printBBox grid
     Grid.debug grid

@@ -14,10 +14,10 @@ type AdvectionGrid = {
 }
 
 type BBox = {
-    minX : single
-    maxX : single
-    minY : single
-    maxY : single
+    minX : float
+    maxX : float
+    minY : float
+    maxY : float
 }
 
 let chompLine (l: string) = l.Split ' '
@@ -40,7 +40,7 @@ let readNodes (f: string array) =
     let next l =
         chompLine l
         |> function
-        | [| x; y |] -> single x, single y
+        | [| x; y |] -> float x, float y
         | _ -> failwith "Invalid node"
     f |> Array.map next
 
@@ -75,8 +75,8 @@ let pointInsideElem grid (x, y, z) p =
     let d2 = sign p v2 v3
     let d3 = sign p v3 v1
 
-    let neg = (d1 <= 0.0f) || (d2 <= 0.0f) || (d3 <= 0.0f)
-    let pos = (d1 >= 0.0f) || (d2 >= 0.0f) || (d3 >= 0.0f)
+    let neg = (d1 <= 0.0) || (d2 <= 0.0) || (d3 <= 0.0)
+    let pos = (d1 >= 0.0) || (d2 >= 0.0) || (d3 >= 0.0)
 
     neg && pos |> not
 
@@ -101,10 +101,10 @@ let getBBox grid =
           maxY = if y > a.maxY then y else a.maxY
         }
     ) {
-        minX = Single.MaxValue
-        maxX = Single.MinValue
-        minY = Single.MaxValue
-        maxY = Single.MinValue
+        minX = Double.MaxValue
+        maxX = Double.MinValue
+        minY = Double.MaxValue
+        maxY = Double.MinValue
       }
 
 let readGrid (filename: string) =
@@ -127,8 +127,8 @@ let debug grid =
         // let e = grid.Elem.[0]
         // let p = 443726.0625f, 7559435.5f
         let e = (7852, 8154, 7851)
-        let p = (438578.4688f, 7548861.0f)
-        let p' = (438574.3125f, 7548863.5f)
+        let p = (438578.4688, 7548861.0)
+        let p' = (438574.3125, 7548863.5)
         let e' =
             findElement grid p
             |> Option.map (fun x -> grid.Elem.[x])

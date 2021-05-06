@@ -6,7 +6,7 @@ type NodeIdx = int
 type ElemIdx = int
 
 type Elem = NodeIdx * NodeIdx * NodeIdx
-type Node = single * single
+type Node = float * float
 
 type Grid = {
     Elem : Elem array
@@ -14,7 +14,7 @@ type Grid = {
 }
 
 type Particle = {
-    Pos : single * single
-    Age : single
+    Pos : float * float
+    Age : float
     Elem: int
 }

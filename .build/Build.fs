@@ -40,7 +40,7 @@ Target.create "Azure" (fun _ ->
 Target.create "Run" (fun _ ->
     run dotnet "build" sharedPath
     [ "server", dotnet "watch run" serverPath
-      "client", dotnet "fable -o js watch --run webpack-dev-server" clientPath ]
+      "client", dotnet "fable watch -o js --run webpack-dev-server" clientPath ]
     |> runParallel
 )
 

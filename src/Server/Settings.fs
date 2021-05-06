@@ -9,8 +9,8 @@ type Settings = {
     grid: string
     particles: string
     uv: string
-    dt: single
-    minDt: single
+    dt: float
+    minDt: float
 }
 
 let tryGetEnv = System.Environment.GetEnvironmentVariable >> function null | "" -> None | x -> Some x
