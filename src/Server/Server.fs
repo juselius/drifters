@@ -10,47 +10,26 @@ open Serilog
 open Shared
 open Settings
 
-type Storage() =
-    let todos = ResizeArray<_>()
+// let private addTodo (next: HttpFunc) (ctx: HttpContext) =
+//     task {
+//         let! todo = ctx.BindJsonAsync<Todo> ()
+//         match storage.AddTodo todo with
+//         | Ok () -> return! json todo next ctx
+//         | Error e -> return! RequestErrors.BAD_REQUEST "fail" next ctx
+//     }
 
-    member __.GetTodos() = List.ofSeq todos
+let grid = Grid.readGrid appsettings.grid
+let tracks = Advect.runSimulation appsettings.dt (25.0f * 3600.0f)
 
-    member __.AddTodo(todo: Todo) =
-        if Todo.isValid todo.Description then
-            todos.Add todo
-            Ok()
-        else
-            Error "Invalid todo"
-
-let storage = Storage()
-
-storage.AddTodo(Todo.create "Create new SAFE project")
-|> ignore
-
-storage.AddTodo(Todo.create "Write your app")
-|> ignore
-
-storage.AddTodo(Todo.create "Ship it !!!")
-|> ignore
-
-let private getTodos next ctx =
-    task {
-        let todos = storage.GetTodos ()
-        return! json todos next ctx
-    }
-
-let private addTodo (next: HttpFunc) (ctx: HttpContext) =
-    task {
-        let! todo = ctx.BindJsonAsync<Todo> ()
-        match storage.AddTodo todo with
-        | Ok () -> return! json todo next ctx
-        | Error e -> return! RequestErrors.BAD_REQUEST "fail" next ctx
-    }
+let private getGrid = json grid
+let private getTrack n = json tracks.[n]
+let private getNTracks = json tracks.Length
 
 let webApp =
-    choose [
-        GET >=> route "/api/getTodos" >=> getTodos
-        POST >=> route "/api/addTodo" >=> addTodo
+    GET >=> choose [
+        route "/api/getGrid" >=> getGrid
+        route "/api/getNTracks" >=> getNTracks
+        routef "/api/getTrack/%i" getTrack
     ]
 
 let configureSerilog () =
@@ -87,7 +66,6 @@ let test () =
     |> Array.iter (printfn "%A")
     ()
 
-test ()
-Field.test ()
-Advect.runSimulation appsettings.dt (66.0f * 3600.0f) |> ignore
-// run app
+// test ()
+// Field.test ()
+run app
