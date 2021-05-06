@@ -2,12 +2,7 @@ module Particle
 
 open System.IO
 open Grid
-
-type Particle = {
-    Pos : single * single
-    Age : single
-    Elem: int
-}
+open Shared
 
 let createParticle grid p =
     let a, e =

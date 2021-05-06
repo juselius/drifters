@@ -6,8 +6,9 @@ open Grid
 open Field
 open Particle
 open Settings
+open Shared
 
-let rec move (grid: Grid) (field: Field) dt (p: Particle) =
+let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
     let x, y = p.Pos
     let e = grid.Elem.[p.Elem]
     let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]

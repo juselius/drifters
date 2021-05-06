@@ -5,13 +5,9 @@ open System.IO
 open FSharpPlus
 open Serilog
 
-type NodeIdx = int
-type ElemIdx = int
+open Shared
 
-type Elem = NodeIdx * NodeIdx * NodeIdx
-type Node = single * single
-
-type Grid = {
+type AdvectionGrid = {
     Elem : Elem array
     Nodes : Node array
     NodeElems : Map<NodeIdx, Set<ElemIdx>>
