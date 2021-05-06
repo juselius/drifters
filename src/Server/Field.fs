@@ -15,5 +15,6 @@ let readUV name t : Field =
     )
 
 let test () =
-    readUV Settings.appsettings.uvName 1
+    readUV Settings.appsettings.uv 1
+    |> Array.take 10
     |> Array.iter (printfn "%A")

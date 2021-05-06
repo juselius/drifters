@@ -55,7 +55,7 @@ let webApp =
 
 let configureSerilog () =
     LoggerConfiguration()
-        .MinimumLevel.Information()
+        .MinimumLevel.Debug()
         .WriteTo.Console()
         .CreateLogger()
 
@@ -79,13 +79,15 @@ let app =
 
 let test () =
     let p = 438441.812500f, 7548383.500000f
-    let grid = Grid.readGrid appsettings.gridFile
+    let grid = Grid.readGrid appsettings.grid
     Grid.printBBox grid
+    Grid.debug grid
     Particle.initParticles grid 100 p
+    |> Array.take 10
     |> Array.iter (printfn "%A")
     ()
 
-// test ()
-Advect.runSimulation () |> ignore
-// Field.test ()
+test ()
+Field.test ()
+Advect.runSimulation appsettings.dt 36000.0f |> ignore
 // run app

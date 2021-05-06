@@ -6,8 +6,11 @@ open Serilog
 
 type Settings = {
     exampleSetting: string
-    gridFile: string
-    uvName: string
+    grid: string
+    particles: string
+    uv: string
+    dt: single
+    minDt: single
 }
 
 let tryGetEnv = System.Environment.GetEnvironmentVariable >> function null | "" -> None | x -> Some x

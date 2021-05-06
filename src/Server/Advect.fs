@@ -1,38 +1,61 @@
 module Advect
 
+open Serilog
+
 open Grid
 open Field
 open Particle
 open Settings
 
-let move (grid: Grid) (field: Field) dt (p: Particle) =
+let rec move (grid: Grid) (field: Field) dt (p: Particle) =
     let x, y = p.Pos
-    let e = grid.Elem.[p.Elem - 1]
-    let u, v = field.[p.Elem - 1] |> fun h -> h.[0], h.[1]
+    let e = grid.Elem.[p.Elem]
+    let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]
     let pos = x + u * dt, y + v * dt
     if pointInsideElem grid e pos then
-        printfn "inside"
-        {
+        { p with
             Pos = pos
             Age = p.Age + dt
-            Elem = p.Elem
+        }
+    elif dt < appsettings.minDt then
+        Log.Information "stranded"
+        {
+            Pos = pos
+            Age = -p.Age
+            Elem = -1
         }
     else
-        printfn "pos = %A %A" p.Pos pos
-        failwith "offside2"
+        getNeighbours e grid
+        |> Set.fold (fun a x ->
+            let e = grid.Elem.[x]
+            if pointInsideElem grid e pos then x else a
+        ) -1
+        |> fun e ->
+            if e < 0 then
+                let dt' = dt / 2.0f
+                move grid field dt' p
+            else
+                {
+                    Pos = pos
+                    Age = p.Age + dt
+                    Elem = e
+                }
 
 let advect dt grid particles =
-    let f = readUV appsettings.uvName 1
+    let f = readUV appsettings.uv 1
     particles
+    |> Array.filter (fun x -> x.Age >= 0.0f)
     |> Array.map (move grid f dt)
 
-let runSimulation () =
+let runSimulation (dt: single) time =
     let p = 438441.812500f, 7548383.500000f
-    let grid = Grid.readGrid appsettings.gridFile
-    let particles = Particle.initParticles grid 100 p
-    let dt = 60.0f
+    let grid = Grid.readGrid appsettings.grid
+    let particles = initParticles grid 1000 p
 
-    [0..10] |> List.fold (fun a t ->
-        single t * dt |> printfn "t=%f s"
-        advect dt grid a
-    ) particles
+    Array.unfold (fun (t, p) ->
+        if t <= time then
+            printfn "t=%f s" t
+            let p' = advect dt grid p
+            Some (p', (t + dt, p'))
+        else None
+    ) (0.0f, particles)

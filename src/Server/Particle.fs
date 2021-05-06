@@ -1,5 +1,6 @@
 module Particle
 
+open System.IO
 open Grid
 
 type Particle = {
@@ -9,13 +10,22 @@ type Particle = {
 }
 
 let createParticle grid p =
+    let a, e =
+        match findElement grid p with
+        | Some x -> 0.0f, x
+        | None -> -1.0f, 0
     {
         Pos = p
-        Age = 0.0f
-        Elem =
-            findElement grid p
-            |> Option.defaultValue -1
+        Age = a
+        Elem = e
     }
+
+let readParicles grid (filename: string) =
+    let split (x: string) = x.Split ' '
+    let conv (x: string array) = single x.[0], single x.[1]
+
+    File.ReadAllLines filename
+    |> Array.map (split >> conv >> createParticle grid)
 
 let initParticles grid npart (x, y) =
     let rnd = System.Random()
