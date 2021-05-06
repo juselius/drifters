@@ -18,12 +18,20 @@ let rec move (grid: Grid) (field: Field) dt (p: Particle) =
             Age = p.Age + dt
         }
     elif dt < appsettings.minDt then
-        Log.Information "stranded"
-        {
-            Pos = pos
-            Age = -p.Age
-            Elem = -1
-        }
+        match findElement grid pos with
+        | Some x ->
+            {
+                Pos = pos
+                Age = p.Age + dt
+                Elem = x
+            }
+        | None ->
+            Log.Information "stranded"
+            {
+                Pos = pos
+                Age = -p.Age
+                Elem = -1
+            }
     else
         getNeighbours e grid
         |> Set.fold (fun a x ->
@@ -41,21 +49,27 @@ let rec move (grid: Grid) (field: Field) dt (p: Particle) =
                     Elem = e
                 }
 
-let advect dt grid particles =
-    let f = readUV appsettings.uv 1
+let advect uv dt grid particles =
     particles
     |> Array.filter (fun x -> x.Age >= 0.0f)
-    |> Array.map (move grid f dt)
+    |> Array.map (move grid uv dt)
 
 let runSimulation (dt: single) time =
     let p = 438441.812500f, 7548383.500000f
     let grid = Grid.readGrid appsettings.grid
     let particles = initParticles grid 1000 p
 
-    Array.unfold (fun (t, p) ->
+    Array.unfold (fun (t, uv, p) ->
+        let uv' =
+            let t' = (t - t % 86400f) / 84600f  |> fun x -> t - x * 84600f
+            if (t' % 3600.0f) = 0.0f && t' < time then
+                let n = t' / 3600.0f |> int
+                sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
+                readUV appsettings.uv n
+            else uv
         if t <= time then
             printfn "t=%f s" t
-            let p' = advect dt grid p
-            Some (p', (t + dt, p'))
+            let p' = advect uv' dt grid p
+            Some (p', (t + dt, uv', p'))
         else None
-    ) (0.0f, particles)
+    ) (0.0f , [||], particles)

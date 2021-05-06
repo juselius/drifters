@@ -89,5 +89,5 @@ let test () =
 
 test ()
 Field.test ()
-Advect.runSimulation appsettings.dt 36000.0f |> ignore
+Advect.runSimulation appsettings.dt (66.0f * 3600.0f) |> ignore
 // run app
