@@ -47,55 +47,55 @@ let track =
     )
 
 let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
-    let x, y = p.Pos
-    let e = grid.Elem.[p.Elem]
-    let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]
-    let pos = (x + u * dt, y + v * dt)
-    if pointInsideElem grid e pos then
-        { p with
-            Pos = pos
-            Age = p.Age + dt
-        }
-    elif dt < appsettings.minDt then
-        match findElement grid pos with
-        | Some x ->
-            {
+    match p.Elem with
+    | None -> p
+    | Some elem ->
+        let x, y = p.Pos
+        let e = grid.Elem.[elem]
+        let u, v = field.[elem] |> fun h -> h.[0], h.[1]
+        let pos = (x + u * dt, y + v * dt)
+        if pointInsideElem grid e pos then
+            { p with
                 Pos = pos
                 Age = p.Age + dt
-                Elem = x
             }
-        | None ->
-            Log.Information "stranded"
-            {
-                Pos = pos
-                Age = -p.Age
-                Elem = -1
-            }
-    else
-        getNeighbours e grid
-        |> Set.fold (fun a x ->
-            let e = grid.Elem.[x]
-            if pointInsideElem grid e pos then x else a
-        ) -1
-        |> fun e ->
-            if e < 0 then
-                // { p with Age = -p.Age }
-                let dt' = dt / 2.0
-                let p' = move grid field dt' p
-                if p'.Elem < 0 then
-                    { p' with Age = -1.0 }
-                else
-                    move grid field dt' p'
-            else
+        elif dt < appsettings.minDt then
+            match findElement grid pos with
+            | Some x ->
                 {
                     Pos = pos
                     Age = p.Age + dt
-                    Elem = e
+                    Elem = Some x
                 }
+            | None ->
+                Log.Information "stranded"
+                {
+                    Pos = pos
+                    Age = p.Age
+                    Elem = None
+                }
+        else
+            getNeighbours e grid
+            |> Set.fold (fun a x ->
+                let e = grid.Elem.[x]
+                if pointInsideElem grid e pos then x else a
+            ) -1
+            |> fun e ->
+                if e < 0 then
+                    let dt' = dt / 2.0
+                    let p' = move grid field dt' p
+                    if p'.Elem.IsNone  then p'
+                    else move grid field dt' p'
+                else
+                    {
+                        Pos = pos
+                        Age = p.Age + dt
+                        Elem = Some e
+                    }
 
 let advect uv dt grid particles =
     particles
-    |> Array.filter (fun x -> x.Age >= 0.0)
+    // |> Array.filter (fun x -> x.Elem < 0)
     |> Array.map (move grid uv dt)
 
 let runSimulation (dt: float) time =

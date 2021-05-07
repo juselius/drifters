@@ -14,5 +14,5 @@ type Grid = {
 type Particle = {
     Pos : float * float
     Age : float
-    Elem: int
+    Elem: int option
 }
