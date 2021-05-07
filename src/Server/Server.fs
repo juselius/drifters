@@ -40,15 +40,20 @@ let askFrame n =
     | Advect.Reply.Frame x -> x
     | _ -> failwith "Unexpexted reply"
 
-let private getGrid = json grid
+let private getGrid = json gridWGS
 let private getNumFrames = json numFrames
 let private getFrame n = json (askFrame n)
+let private getFrames () =
+    [ numFrames - 1 .. -1 .. 0 ]
+    |> List.fold (fun a n -> askFrame n :: a) []
+    |> json
 
 let webApp =
     GET >=> choose [
         route "/api/getGrid" >=> getGrid
         route "/api/getNumFrames" >=> getNumFrames
         routef "/api/getFrame/%i" getFrame
+        route "/api/getFrames" >=> getFrames ()
     ]
 
 let configureSerilog () =

@@ -51,7 +51,6 @@ let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
     let e = grid.Elem.[p.Elem]
     let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]
     let pos = (x + u * dt, y + v * dt)
-    // printfn "%A %A %A" p.Pos (x, y) pos
     if pointInsideElem grid e pos then
         { p with
             Pos = pos
@@ -80,10 +79,11 @@ let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
         ) -1
         |> fun e ->
             if e < 0 then
+                // { p with Age = -p.Age }
                 let dt' = dt / 2.0
                 let p' = move grid field dt' p
                 if p'.Elem < 0 then
-                    p'
+                    { p' with Age = -1.0 }
                 else
                     move grid field dt' p'
             else
@@ -104,8 +104,10 @@ let runSimulation (dt: float) time =
     let grid = readGrid appsettings.grid
     let particles = initParticles grid 1000 p
 
+    IO.Directory.CreateDirectory "output" |> ignore
+
     Array.unfold (fun (t, uv, (p: Particle array)) ->
-        printfn "%A" p.Length
+        sprintf "Num particles %d" p.Length |> Log.Debug
         let uv' =
             let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
             if (t' % 3600.0) = 0.0 && t' < time then
@@ -113,7 +115,7 @@ let runSimulation (dt: float) time =
                     p |> Array.map (fun x->
                         sprintf "%f %f" (fst x.Pos) (snd x.Pos))
                     |> Array.fold (fun a x -> a + x + "\n") ""
-                IO.File.WriteAllText (sprintf "pos-%d.dat" (int t),  ps)
+                IO.File.WriteAllText (sprintf "output/pos-%d.dat" (int t),  ps)
                 sprintf "Wrote pos-%d.dat" (int t) |> Log.Information
                 let pll = p |> Array.map (fun x-> toLatLon x.Pos)
                 track.PostAndReply (fun r -> r, Msg.PutParticles pll) |> ignore
@@ -127,6 +129,4 @@ let runSimulation (dt: float) time =
             Some (p'.Length, (t + dt, uv', p'))
         else None
     ) (0.0, [||], particles)
-    // |> Array.map (fun x ->
-    //     Array.map (fun p -> { p with Pos = toLatLon p.Pos }) x)
 

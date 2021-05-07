@@ -21,6 +21,7 @@ let readParicles grid (filename: string) =
 
     File.ReadAllLines filename
     |> Array.map (split >> conv >> createParticle grid)
+    |> Array.filter (fun p -> p.Age < 0.0)
 
 let initParticles (grid: AdvectionGrid) npart (x, y) =
     let rnd = System.Random()

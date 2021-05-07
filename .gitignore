@@ -16,3 +16,7 @@ release.cmd
 release.sh
 *.orig
 *.DotSettings.user
+*.dat
+*.grd
+output/
+*.nc
