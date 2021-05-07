@@ -1,7 +1,5 @@
 namespace Shared
 
-open System
-
 type NodeIdx = int
 type ElemIdx = int
 
