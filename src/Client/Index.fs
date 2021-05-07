@@ -19,14 +19,14 @@ type Model =
     {
         CurrentUrl: string list
         Input: string
-        Particles: Particle array array
+        Particles: (float * float) array array
         Grid: Grid
     }
 
 type Msg =
     | SetInput of string
     | AddGrid of Grid
-    | AddParticles of Particle array
+    | AddParticles of (float * float) array
 
 let getGrid dispatch =
     let decoder : Decoder<Grid> = Decode.Auto.generateDecoder ()
@@ -36,14 +36,18 @@ let getGrid dispatch =
     } |> Promise.start
 
 let getParticles dispatch =
-    let decoder : Decoder<Particle array> = Decode.Auto.generateDecoder ()
+    let decoder : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
     promise {
-        let! x = Fetch.fetchAs (url="/api/getFrame/0", decoder = decoder)
-        let! y = Fetch.fetchAs (url="/api/getFrame/100", decoder = decoder)
-        let! z = Fetch.fetchAs (url="/api/getFrame/1000", decoder = decoder)
-        dispatch (AddParticles x)
-        dispatch (AddParticles y)
-        dispatch (AddParticles z)
+        let! f1 = Fetch.fetchAs (url="/api/getFrame/0", decoder = decoder)
+        let! f2 = Fetch.fetchAs (url="/api/getFrame/10", decoder = decoder)
+        let! f3 = Fetch.fetchAs (url="/api/getFrame/100", decoder = decoder)
+        let! f4 = Fetch.fetchAs (url="/api/getFrame/150", decoder = decoder)
+        let! f5 = Fetch.fetchAs (url="/api/getFrame/200", decoder = decoder)
+        dispatch (AddParticles f1)
+        dispatch (AddParticles f2)
+        dispatch (AddParticles f3)
+        dispatch (AddParticles f4)
+        dispatch (AddParticles f5)
     } |> Promise.start
 
 // let addTodo (input: string) dispatch =
@@ -91,10 +95,10 @@ let particle (pos: float * float) =
     let p = U3.Case3 pos
     RL.circle [
         RL.CircleProps.Custom ("center", p)
-        RL.CircleProps.Radius 50.
+        RL.CircleProps.Radius 10.
         RL.CircleProps.FillColor "blue"
         RL.CircleProps.Fill true
-        RL.CircleProps.Weight 0.2
+        RL.CircleProps.Weight 0.1
     ] []
 
 let triangle (a, b, c) =
@@ -111,6 +115,14 @@ let triangle (a, b, c) =
         RL.PolygonProps.Weight 1.2
     ] []
 
+let polyLine (track: (float * float) array) =
+    let p = track |> Array.map U3.Case3 |> U3.Case1
+    RL.polyline [
+        RL.PolylineProps.Positions p
+        RL.PolylineProps.Fill false
+        RL.PolylineProps.Weight 0.5
+    ] []
+
 let renderGrid (grid : Grid) =
     if grid.Elem.Length > 0 then
         grid.Elem
@@ -120,13 +132,17 @@ let renderGrid (grid : Grid) =
         |> List.ofArray
     else []
 
-let renderParticles (particles: Particle array array) t =
-    if particles.Length > 0 then
+let renderParticles (particles: (float * float) array array) t =
+    if particles.Length > t then
         particles.[t]
-        |> Array.map (fun p -> particle p.Pos)
+        |> Array.map particle
         |> List.ofArray
     else []
 
+let renderTrack (particles: (float * float) array array) n =
+    if particles.Length > 0 then
+        particles |> Array.fold (fun a x -> x.[n] :: a) [] |> Array.ofList |> polyLine |> List.singleton
+    else []
 
 let map (grid : Grid) particles =
     Fable.Core.JS.console.log particles
@@ -144,7 +160,16 @@ let map (grid : Grid) particles =
             particle (68.05, 13.6)
         ]
         // @ renderGrid grid
-        @ renderParticles particles 0
+        // @ renderParticles particles 0
+        // @ renderParticles particles 1
+        // @ renderParticles particles 2
+        // @ renderParticles particles 4
+        // @ renderParticles particles 5
+        @ renderTrack particles 5
+        @ renderTrack particles 50
+        @ renderTrack particles 100
+        @ renderTrack particles 500
+        @ renderTrack particles 501
     )
 
 let containerBox (model: Model) (dispatch: Msg -> unit) =
