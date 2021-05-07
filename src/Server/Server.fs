@@ -18,12 +18,31 @@ open Settings
 //         | Error e -> return! RequestErrors.BAD_REQUEST "fail" next ctx
 //     }
 
+printfn "Create grid"
 let grid = Grid.readGrid appsettings.grid
-let frames = Advect.runSimulation appsettings.dt (25.0 * 3600.0)
+let gridWGS = { grid with Nodes = grid.Nodes |> Array.map UTM.toLatLon }
+
+printfn "Run simulation"
+let frames = Advect.runSimulation appsettings.dt (200.0 * 3600.0)
+printfn "Computed frames: %d" frames.Length
+
+let numFrames =
+    let r  = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetNumFrames)
+    match r with
+    | Advect.Reply.NumFrames n -> n
+    | _ -> failwith "Unexpexted reply"
+
+printfn "Number of available frames: %d" numFrames
+
+let askFrame n =
+    let r = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetFrame n)
+    match r with
+    | Advect.Reply.Frame x -> x
+    | _ -> failwith "Unexpexted reply"
 
 let private getGrid = json grid
-let private getFrame n = json frames.[n]
-let private getNumFrames = json frames.Length
+let private getNumFrames = json numFrames
+let private getFrame n = json (askFrame n)
 
 let webApp =
     GET >=> choose [

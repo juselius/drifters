@@ -22,13 +22,13 @@ let readParicles grid (filename: string) =
     File.ReadAllLines filename
     |> Array.map (split >> conv >> createParticle grid)
 
-let initParticles grid npart (x, y) =
+let initParticles (grid: AdvectionGrid) npart (x, y) =
     let rnd = System.Random()
     Array.unfold (fun n ->
         if n < 1 then None
         else
-            let r0 = rnd.NextDouble() * 500.0 |> float
-            let r1 = rnd.NextDouble() * 500.0 |> float
+            let r0 = rnd.NextDouble() * 2500.0 |> float
+            let r1 = rnd.NextDouble() * 2500.0 |> float
             let p = x + r0, y + r1
             Some (p, n - 1)) npart
     |> Array.map (createParticle grid)

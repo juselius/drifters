@@ -67,6 +67,7 @@ let pointInsideElem grid (x, y, z) p =
     let sign (p1x, p1y) (p2x, p2y) (p3x, p3y) =
         (p1x - p3x) * (p2y - p3y) - (p2x - p3x) * (p1y - p3y)
 
+    let p = p
     let v1 = grid.Nodes.[z]
     let v2 = grid.Nodes.[y]
     let v3 = grid.Nodes.[x]

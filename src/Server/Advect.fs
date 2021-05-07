@@ -7,20 +7,51 @@ open Grid
 open Field
 open Particle
 open Settings
+open UTM
 open Shared
 
-let fromLonLat (x: float, y: float) =
-    let utm = ProjNet.CoordinateSystems.ProjectedCoordinateSystem.WGS84_UTM(33,true)
-    let wgs = ProjNet.CoordinateSystems.GeographicCoordinateSystem.WGS84
-    let f = ProjNet.CoordinateSystems.Transformations.CoordinateTransformationFactory()
-    let transform = f.CreateFromCoordinateSystems(wgs, utm)
-    transform.MathTransform.Transform(x, y).ToTuple() |> fun (a,b) -> b, a
+[<RequireQualifiedAccess>]
+type Msg =
+    | GetFrame of int
+    | GetNumFrames
+    | PutParticles of (float * float) array
+    | Reset
+
+[<RequireQualifiedAccess>]
+type Reply =
+    | Frame of (float * float) array
+    | NumFrames of int
+    | Empty
+
+type Inbox = MailboxProcessor<AsyncReplyChannel<Reply> * Msg>
+
+let track =
+    MailboxProcessor.Start (fun (inbox : Inbox) ->
+        let rec loop (particles : (float * float) array array) =
+            async {
+                match! inbox.Receive () with
+                | reply, Msg.GetNumFrames ->
+                    reply.Reply (Reply.NumFrames particles.Length)
+                    return! loop particles
+                | reply, Msg.GetFrame n ->
+                    reply.Reply (Reply.Frame particles.[n])
+                    return! loop particles
+                | reply, Msg.PutParticles p ->
+                    reply.Reply Reply.Empty
+                    return! loop (Array.append particles [| p |])
+                | reply, Msg.Reset ->
+                    reply.Reply Reply.Empty
+                    return! loop [||]
+            }
+        loop [||]
+    )
 
 let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
-    let x, y = fromLonLat p.Pos
+    let x, y = p.Pos
     let e = grid.Elem.[p.Elem]
     let u, v = field.[p.Elem] |> fun h -> h.[0], h.[1]
-    let pos = x + u * dt, y + v * dt
+    let pos = (x + u * dt, y + v * dt)
+    // printfn "%A %A %A" p.Pos (x, y) pos
     if pointInsideElem grid e pos then
         { p with
             Pos = pos
@@ -50,7 +81,11 @@ let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
         |> fun e ->
             if e < 0 then
                 let dt' = dt / 2.0
-                move grid field dt' p
+                let p' = move grid field dt' p
+                if p'.Elem < 0 then
+                    p'
+                else
+                    move grid field dt' p'
             else
                 {
                     Pos = pos
@@ -65,7 +100,7 @@ let advect uv dt grid particles =
 
 let runSimulation (dt: float) time =
     // let p = 438441.812500, 7548383.500000
-    let p = (68.05, 13.6)
+    let p = fromLatLon (68.05, 13.6)
     let grid = readGrid appsettings.grid
     let particles = initParticles grid 1000 p
 
@@ -74,6 +109,14 @@ let runSimulation (dt: float) time =
         let uv' =
             let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
             if (t' % 3600.0) = 0.0 && t' < time then
+                let ps =
+                    p |> Array.map (fun x->
+                        sprintf "%f %f" (fst x.Pos) (snd x.Pos))
+                    |> Array.fold (fun a x -> a + x + "\n") ""
+                IO.File.WriteAllText (sprintf "pos-%d.dat" (int t),  ps)
+                sprintf "Wrote pos-%d.dat" (int t) |> Log.Information
+                let pll = p |> Array.map (fun x-> toLatLon x.Pos)
+                track.PostAndReply (fun r -> r, Msg.PutParticles pll) |> ignore
                 let n = t' / 3600.0 |> int
                 sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
                 readUV appsettings.uv n
@@ -81,10 +124,9 @@ let runSimulation (dt: float) time =
         if t <= time then
             printfn "t=%f s" t
             let p' = advect uv' dt grid p
-            Some (p', (t + dt, uv', p'))
+            Some (p'.Length, (t + dt, uv', p'))
         else None
     ) (0.0, [||], particles)
-    |> fun x ->
-        printfn "%A" x.[0].Length
-        printfn "%A" particles.Length
-        x
+    // |> Array.map (fun x ->
+    //     Array.map (fun p -> { p with Pos = toLatLon p.Pos }) x)
+
