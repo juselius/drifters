@@ -21,12 +21,15 @@ type Model =
         Input: string
         Particles: (float * float) array array
         Grid: Grid
+        CurrentFrame: int
     }
 
 type Msg =
     | SetInput of string
     | AddGrid of Grid
     | AddParticles of (float * float) array
+    | AddFrames of (float * float) array array
+    | SetFrame of int
 
 let getGrid dispatch =
     let decoder : Decoder<Grid> = Decode.Auto.generateDecoder ()
@@ -35,28 +38,20 @@ let getGrid dispatch =
         dispatch (AddGrid x)
     } |> Promise.start
 
-let getParticles dispatch =
+let getParticles dispatch n =
     let decoder : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
+    let url = sprintf "/api/getFrame/%d" n
     promise {
-        let! f1 = Fetch.fetchAs (url="/api/getFrame/0", decoder = decoder)
-        let! f2 = Fetch.fetchAs (url="/api/getFrame/10", decoder = decoder)
-        let! f3 = Fetch.fetchAs (url="/api/getFrame/100", decoder = decoder)
-        let! f4 = Fetch.fetchAs (url="/api/getFrame/150", decoder = decoder)
-        let! f5 = Fetch.fetchAs (url="/api/getFrame/200", decoder = decoder)
-        dispatch (AddParticles f1)
-        dispatch (AddParticles f2)
-        dispatch (AddParticles f3)
-        dispatch (AddParticles f4)
-        dispatch (AddParticles f5)
+        let! p = Fetch.fetchAs (url=url, decoder = decoder)
+        dispatch (AddParticles p)
     } |> Promise.start
 
-// let addTodo (input: string) dispatch =
-//     let decoder : Decoder<Todo> = Thoth.Json.Decode.Auto.generateDecoder ()
-//     let todo = Todo.create input
-//     promise {
-//         let! res = Fetch.post (url="/api/addTodo", data = todo, decoder = decoder)
-//         dispatch (AddTodo res)
-//     } |> Promise.start
+let getFrames dispatch =
+    let decoder : Decoder<(float * float) array array> = Decode.Auto.generateDecoder ()
+    promise {
+        let! p = Fetch.fetchAs (url="/api/getFrames", decoder = decoder)
+        dispatch (AddFrames p)
+    } |> Promise.start
 
 let init () : Model  =
     {
@@ -64,6 +59,7 @@ let init () : Model  =
         Input = ""
         Particles = Array.empty
         Grid = { Elem = Array.empty; Nodes = Array.empty }
+        CurrentFrame = 0
     }
 
 let update (model: Model) (msg: Msg) : Model=
@@ -72,6 +68,8 @@ let update (model: Model) (msg: Msg) : Model=
     | AddGrid grid -> { model with Grid = grid }
     | AddParticles p ->
         { model with Particles = Array.append model.Particles [| p |] }
+    | AddFrames n -> { model with Particles = n }
+    | SetFrame n -> { model with CurrentFrame = n }
 
 let navBrand =
     Bulma.navbarBrand.div [
@@ -132,20 +130,23 @@ let renderGrid (grid : Grid) =
         |> List.ofArray
     else []
 
-let renderParticles (particles: (float * float) array array) t =
-    if particles.Length > t then
-        particles.[t]
+let renderParticles (particles: (float * float) array array) frame =
+    if particles.Length > frame then
+        particles.[frame]
         |> Array.map particle
         |> List.ofArray
     else []
 
-let renderTrack (particles: (float * float) array array) n =
-    if particles.Length > 0 then
-        particles |> Array.fold (fun a x -> x.[n] :: a) [] |> Array.ofList |> polyLine |> List.singleton
+let renderTrack (particles: (float * float) array array) frame n =
+    if particles.Length > frame then
+        particles.[0..frame] |> Array.fold (fun a x -> x.[n] :: a) [] |> Array.ofList |> polyLine |> List.singleton
     else []
 
-let map (grid : Grid) particles =
-    Fable.Core.JS.console.log particles
+let renderTracks particles frame n =
+    [0..n] |> List.collect (renderTrack particles frame)
+
+let map (grid : Grid) (particles: (float * float) array array) frame =
+    // Fable.Core.JS.console.log particles.Length
     let pos = U3.Case3 (68.1, 13.4)
     RL.map [
         RL.MapProps.Zoom 9.
@@ -157,45 +158,23 @@ let map (grid : Grid) particles =
     ] (
         [
             tile
-            particle (68.05, 13.6)
+            // particle (68.05, 13.6)
         ]
         // @ renderGrid grid
-        // @ renderParticles particles 0
-        // @ renderParticles particles 1
-        // @ renderParticles particles 2
-        // @ renderParticles particles 4
-        // @ renderParticles particles 5
-        @ renderTrack particles 5
-        @ renderTrack particles 50
-        @ renderTrack particles 100
-        @ renderTrack particles 500
-        @ renderTrack particles 501
+        // @ renderParticles particles frame
+        @ renderTracks particles frame 2
+
     )
 
 let containerBox (model: Model) (dispatch: Msg -> unit) =
     Bulma.box [
         Bulma.content [
-            Html.h1 "Stuff"
+            Html.h1 "Drifters"
         ]
-        map model.Grid model.Particles
         Bulma.field.div [
             // field.isGrouped
             prop.children [
-                // map
-                // Bulma.control.p [
-                //     control.isExpanded
-                //     prop.children [ Bulma.input.text [
-                //        prop.value model.Input
-                //        prop.placeholder "What needs to be done?"
-                //        prop.onChange (fun x -> SetInput x |> dispatch)
-                //     ] ]
-                // ]
-                // Bulma.control.p [ Bulma.button.a [
-                //     color.isPrimary
-                //     prop.disabled ( Todo.isValid model.Input |> not)
-                //     prop.onClick (fun _ -> addTodo model.Input dispatch)
-                //     prop.text "Add"
-                // ] ]
+                map model.Grid model.Particles model.CurrentFrame
             ]
         ]
    ]
@@ -206,7 +185,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
         color.isPrimary
         prop.style [
             style.backgroundSize "cover"
-            style.backgroundImageUrl "https://unsplash.it/1200/900?random"
+            // style.backgroundImageUrl "https://unsplash.it/1200/900?random"
             style.backgroundPosition "no-repeat center center fixed"
         ]
         prop.children [
@@ -237,8 +216,28 @@ let app =
         let initialModel = init ()
         let model, dispatch = React.useReducer(update, initialModel)
 
+        let nFrames, setNFrames = React.useState 0
+
+        let decoder : Decoder<int> = Decode.Auto.generateDecoder ()
         React.useEffect ((fun _ -> getGrid dispatch), [||])
-        React.useEffect ((fun _ -> getParticles dispatch), [||])
+        React.useEffect (
+            (fun _ ->
+                promise {
+                    let! p = Fetch.fetchAs (url="/api/getNumFrames", decoder = decoder)
+                    setNFrames p
+                } |> Promise.start
+                getFrames dispatch
+            ), [||])
+        React.useEffect (
+            (fun _ ->
+                promise {
+                    do! Promise.sleep 100
+                    if model.CurrentFrame <= nFrames then
+                        SetFrame (model.CurrentFrame + 1) |> dispatch
+                    else ()
+                } |> Promise.start
+            ), [| model.CurrentFrame :> obj; nFrames :> obj |]
+        )
 
         Html.div [
             React.router [
