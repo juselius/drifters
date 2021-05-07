@@ -85,6 +85,7 @@ you. They are available in `src/Server/UTM.fs`.
       * Add a REST endpoint to send in initial particle positions, a timestep and simulation length
       * Add an endpoint to run the current simulation
       * Add an endpoint to step the current simulation by one hour
+      * Make advection more efficient by restricting the element search space (Hint: *Maps and Sets are your friends*)
    2. Client side
       * Add inputs for defining a new simulation: timestep, simulation time, number of particles, radius
       * Initialize the particles by double-clicking on the map. This should
