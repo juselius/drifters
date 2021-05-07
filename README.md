@@ -10,15 +10,15 @@ visualize results from simulations.
 In order to perform real simulations you will be provided with the following
 data (in the `data/` folder):
 
-* A grid definition file: `grid.grd`. The grid used in this exericise is
+* A grid definition file: `grid.grd`. The grid used in this exercise is
   unstructured and triangular (obtained from the FVCOM ocean model). The grid
   file has three parts:
   * Line 1 is header with two integers: number of elements (triangles) and number of nodes.
-  * Lines 2 - (nElements + 1) has three integer, indexing coordinates of the corners of each element (triangel).
+  * Lines 2 - (nElements + 1) has three integer, indexing coordinates of the corners of each element (triangle).
   * Lines (nElements + 2) ->  has two real number which are the coordinates of a node in meters in the UTM-33 projection.
 * 24 velocity files `uv-N.dat` containing the current velocity components in m/s
   for each node. Each file represents one hour.
-* A particle file `particles.dat` with inital positions for particles, in the UTM-33 projection.
+* A particle file `particles.dat` with initial positions for particles, in the UTM-33 projection.
 
 ### Simulating trajectories
 
@@ -29,17 +29,17 @@ The steps required to simulate the trajectory (movement over time) of a particle
 3. Locate the element (triangle) which contains the particle coordinates (x, y).
 4. Look up the velocity of the element.
 5. Advect (move) the particle using the following formula:
-   (x', y') = (x + u * dt, y + v * dt), where dt is the timestep (e.g. 600.0-600.0 s)
+   (x', y') = (x + u * dt, y + v * dt), where dt is the timestep (e.g. 60.0-600.0 s)
 6. Increment time by dt. If time is larger than the defined simulation time, stop. Otherwise: `goto 2`.
 
 ### On coordinates and projections
 
 We well concern ourselves with two coordinates systems, with corresponding
 projections: UTM-33 and WGS84. WGS84 is based on spherical coordinates (degrees
-latitude and longitude), whereas UTM is cartesian (meters).
+latitude and longitude), whereas UTM is Cartesian (meters).
 
 For simulating trajectories it's vastly more convenient to work with
-catesian coordinates in UTM, than with spherical coordinates.
+Cartesian coordinates in UTM, than with spherical coordinates.
 
 For plotting features on a map we must use WGS84, as the Leaflet mapping library
 only supports WGS84 out of the box.
@@ -52,18 +52,18 @@ you. They are available in `src/Server/UTM.fs`.
 
 1. Read and plot particles
    1. Server side
-      * Read the the particles from `particles.dat`.
-      * Create a REST enpoint to fetch the particles as JSON.
+      * Read the particles from `particles.dat`.
+      * Create a REST endpoint to fetch the particles as JSON.
    2. Client side
       * Fetch the initial particles from the server
       * Plot the particles on the map.
-2. Read and initalize the grid
+2. Read and initialize the grid
    1. Server side
-      * Read the the grid from `grid.grd`.
+      * Read the grid from `grid.grd`.
       * Calculate and print the bounding box (min and max coordinates) of the grid.
       * Write a function to find which element a coordinate is inside (Hint: *triangle interior*).
       * Calculate print the initial element of each particle
-      * Create a REST enpoint to fetch the grid.
+      * Create a REST endpoint to fetch the grid.
    2. Client side
       * Fetch the grid from the server and plot it on the map. **NB!** The grid
         is quite big (~50 000 elements), so this will torture your browser.
@@ -73,9 +73,9 @@ you. They are available in `src/Server/UTM.fs`.
       * Implement advection for the particles (see above). If a particles ends
         up outside the grid, leave it where it is and ignore it.
       * Implement time stepping for up to 24 hours, using the correct velocity data.
-      * Keep the particle postitions (simulation frame) for every hour, i.e. 24 frames per simulated day.
+      * Keep the particle positions (simulation frame) for every hour, i.e. 24 frames per simulated day.
       * Implement long simulations by wrapping velocity data.
-      * Implement a REST enpoint to fetch frames
+      * Implement a REST endpoint to fetch frames
    2. Client side
       * Load particle frames from the server and plot the particles
       * Add buttons to time step back and forth through frames
@@ -169,13 +169,17 @@ The build project in root directory contains a couple of different build targets
 
 ## Hints
 
-* [FVCOM](http://fvcom.smast.umassd.edu/fvcom/)
-
 You will find more documentation about the used F# components at the following places:
 
 * [Saturn](https://saturnframework.org/)
 * [Fable](https://fable.io/docs/)
 * [Feliz](https://zaid-ajaj.github.io/Feliz/)
 * [Elmish](https://elmish.github.io/elmish/)
+* [Fable.ReactLeaflet](https://github.com/MangelMaxime/Fable.ReactLeaflet/)
+
+Oceanography and particle simulations:
+
+* [FVCOM](http://fvcom.smast.umassd.edu/fvcom/)
+* [OpenDrift](https://opendrift.github.io/)
 
 *Good luck, and may the Foo be with you!*
