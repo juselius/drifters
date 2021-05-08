@@ -1,5 +1,7 @@
 module Server
 
+open System
+open System.IO
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Logging
 open FSharp.Control.Tasks.V2
@@ -10,21 +12,25 @@ open Serilog
 open Shared
 open Settings
 
-// let private addTodo (next: HttpFunc) (ctx: HttpContext) =
-//     task {
-//         let! todo = ctx.BindJsonAsync<Todo> ()
-//         match storage.AddTodo todo with
-//         | Ok () -> return! json todo next ctx
-//         | Error e -> return! RequestErrors.BAD_REQUEST "fail" next ctx
-//     }
-
 printfn "Create grid"
 let grid = Grid.readGrid appsettings.grid
 let gridWGS = { grid with Nodes = grid.Nodes |> Array.map UTM.toLatLon }
 
+let p = UTM.fromLatLon (68.05, 13.6)
+let particles = Particle.initParticles grid 1000 p
+
 printfn "Run simulation"
-let frames = Advect.runSimulation appsettings.dt (200.0 * 3600.0)
-printfn "Computed frames: %d" frames.Length
+let sim : Advect.Simulation = {
+    dt = appsettings.dt
+    stepT = 3600.0
+    startT = 0.0
+    endT = 300.0 * 3600.0
+    grid = grid
+    particles = particles
+    dispatch = Advect.track
+}
+Directory.CreateDirectory "output" |> ignore
+let restart = Advect.runSimulation sim
 
 let numFrames =
     let r  = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetNumFrames)
@@ -43,17 +49,65 @@ let askFrame n =
 let private getGrid = json gridWGS
 let private getNumFrames = json numFrames
 let private getFrame n = json (askFrame n)
-let private getFrames () =
+
+let private getFrames =
     [ numFrames - 1 .. -1 .. 0 ]
     |> List.fold (fun a n -> askFrame n :: a) []
     |> json
 
+let private setSim (next: HttpFunc) (ctx: HttpContext) =
+    task {
+        let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
+        Advect.track.PostAndReply (fun r -> r, Advect.SetSim sim) |> ignore
+        return! Successful.OK () next ctx
+    }
+
+let private startSim (next: HttpFunc) (ctx: HttpContext) =
+    task {
+        let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
+        Advect.track.PostAndReply (fun r -> r, Advect.Start sim) |> ignore
+        return! Successful.OK () next ctx
+    }
+
+let private isRunning =
+    match Advect.track.PostAndReply (fun r -> r, Advect.Query) with
+    | Advect.IsRunning running -> json running
+    | _ -> failwith "Unexpexted reply"
+
+let private getSim =
+    match Advect.track.PostAndReply (fun r -> r, Advect.GetSim) with
+    | Advect.Simulation sim -> json sim
+    | _ -> failwith "Unexpexted reply"
+
+let private pauseSim =
+    Advect.track.PostAndReply (fun r -> r, Advect.Pause) |> ignore
+    Successful.OK ()
+
+let private continueSim =
+    Advect.track.PostAndReply (fun r -> r, Advect.Continue) |> ignore
+    Successful.OK ()
+
+let private resetSim =
+    Advect.track.PostAndReply (fun r -> r, Advect.Reset) |> ignore
+    Successful.OK ()
+
 let webApp =
-    GET >=> choose [
-        route "/api/getGrid" >=> getGrid
-        route "/api/getNumFrames" >=> getNumFrames
-        routef "/api/getFrame/%i" getFrame
-        route "/api/getFrames" >=> getFrames ()
+    choose [
+        GET >=> choose [
+            route "/api/getGrid" >=> getGrid
+            route "/api/getNumFrames" >=> getNumFrames
+            routef "/api/getFrame/%i" getFrame
+            route "/api/getFrames" >=> getFrames
+            route "/api/isRunning" >=> isRunning
+            route "/api/getSimulation" >=> getSim
+            route "/api/pauseSimulation" >=> pauseSim
+            route "/api/continueSimulation" >=> continueSim
+            route "/api/resetSimulation" >=> resetSim
+        ]
+        POST >=> choose [
+            route "/api/setSimulation" >=> setSim
+            route "/api/startSimulation" >=> setSim
+        ]
     ]
 
 let configureSerilog () =

@@ -22,6 +22,10 @@ type Model =
         Particles: (float * float) array array
         Grid: Grid
         CurrentFrame: int
+        ShowGrid: bool
+        ShowParticles: bool
+        ShowTracks: bool
+        Playing: bool
     }
 
 type Msg =
@@ -30,6 +34,13 @@ type Msg =
     | AddParticles of (float * float) array
     | AddFrames of (float * float) array array
     | SetFrame of int
+    | ToggleGrid
+    | ToggleParticles
+    | ToggleTracks
+    | StepForward
+    | StepBackward
+    | PlayPause
+    | Stop
 
 let getGrid dispatch =
     let decoder : Decoder<Grid> = Decode.Auto.generateDecoder ()
@@ -60,32 +71,46 @@ let init () : Model  =
         Particles = Array.empty
         Grid = { Elem = Array.empty; Nodes = Array.empty }
         CurrentFrame = 0
+        ShowGrid = false
+        ShowParticles = true
+        ShowTracks = false
+        Playing = false
     }
 
 let update (model: Model) (msg: Msg) : Model=
     match msg with
     | SetInput value -> { model with Input = value }
     | AddGrid grid -> { model with Grid = grid }
-    | AddParticles p ->
-        { model with Particles = Array.append model.Particles [| p |] }
+    | AddParticles p -> { model with Particles = Array.append model.Particles [| p |] }
     | AddFrames n -> { model with Particles = n }
     | SetFrame n -> { model with CurrentFrame = n }
+    | ToggleGrid -> { model with ShowGrid = not model.ShowGrid }
+    | ToggleParticles-> { model with ShowParticles = not model.ShowParticles }
+    | ToggleTracks-> { model with ShowTracks = not model.ShowTracks }
+    | StepForward-> { model with CurrentFrame = if model.CurrentFrame < model.Particles.Length then model.CurrentFrame + 1 else model.CurrentFrame }
+    | StepBackward-> { model with CurrentFrame = if model.CurrentFrame > 0 then model.CurrentFrame - 1 else model.CurrentFrame }
+    | PlayPause-> { model with Playing = not model.Playing }
+    | Stop-> { model with CurrentFrame = 0 }
 
-let navBrand =
-    Bulma.navbarBrand.div [
-        Bulma.navbarItem.a [
-            prop.href "https://safe-stack.github.io/"
-            navbarItem.isActive
-            prop.children [ Html.img [
-                prop.src "/favicon.png"
-                prop.alt "Logo"
-            ] ]
-        ]
-    ]
+
+let wmtsSource layer =
+    "http://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?" +
+        "&layer=" + layer +
+        "&style=default" +
+        "&tilematrixset=EPSG%3A3857" +
+        "&Service=WMTS" +
+        "&Request=GetTile" +
+        "&Version=1.0.0" +
+        "&Format=image%2Fpng" +
+        "&TileMatrix=EPSG%3A3857:{z}" +
+        "&TileCol={x}" +
+        "&TileRow={y}"
+
+let osm = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 
 let tile =
     RL.tileLayer [
-        RL.TileLayerProps.Url "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        RL.TileLayerProps.Url (wmtsSource "norgeskart_bakgrunn")
         RL.TileLayerProps.Attribution "&amp;copy <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
     ] []
 
@@ -145,8 +170,8 @@ let renderTrack (particles: (float * float) array array) frame n =
 let renderTracks particles frame n =
     [0..n] |> List.collect (renderTrack particles frame)
 
-let map (grid : Grid) (particles: (float * float) array array) frame =
-    // Fable.Core.JS.console.log particles.Length
+let map (model: Model) dispatch =
+    let frame = model.CurrentFrame
     let pos = U3.Case3 (68.1, 13.4)
     RL.map [
         RL.MapProps.Zoom 9.
@@ -160,21 +185,73 @@ let map (grid : Grid) (particles: (float * float) array array) frame =
             tile
             // particle (68.05, 13.6)
         ]
-        // @ renderGrid grid
-        // @ renderParticles particles frame
-        @ renderTracks particles frame 2
+        @ if model.ShowGrid then renderGrid model.Grid else []
+        @ if model.ShowParticles then renderParticles model.Particles frame else []
+        @ if model.ShowTracks then renderTracks model.Particles frame 40 else []
 
     )
+
+let navBrand =
+    Bulma.navbarBrand.div [
+        Bulma.navbarItem.a [
+            prop.style [ style.backgroundColor "#404040" ]
+            prop.href "https://safe-stack.github.io/"
+            navbarItem.isActive
+            prop.children [ Html.img [
+                prop.src "/favicon.png"
+                prop.alt "Logo"
+            ] ]
+        ]
+    ]
 
 let containerBox (model: Model) (dispatch: Msg -> unit) =
     Bulma.box [
         Bulma.content [
-            Html.h1 "Drifters"
-        ]
-        Bulma.field.div [
-            // field.isGrouped
-            prop.children [
-                map model.Grid model.Particles model.CurrentFrame
+            // Html.h1 "Controls"
+            Bulma.field.div [
+                Bulma.button.button [
+                    prop.text "Particles"
+                    if model.ShowParticles then Bulma.color.isInfo
+                    prop.onClick (fun _ -> dispatch ToggleParticles)
+                ]
+                Bulma.button.button [
+                    prop.text "Tracks"
+                    if model.ShowTracks then Bulma.color.isInfo
+                    prop.onClick (fun _ -> dispatch ToggleTracks)
+                ]
+                Bulma.button.button [
+                    prop.text "Grid"
+                    if model.ShowGrid then Bulma.color.isInfo
+                    prop.onClick (fun _ -> dispatch ToggleGrid)
+                ]
+            ]
+            Bulma.field.div [
+                Bulma.button.button [
+                    if model.Playing then
+                        prop.text "Pause"
+                        color.isInfo
+                    else
+                        prop.text "Play"
+                    prop.onClick (fun _ -> dispatch PlayPause)
+                ]
+                Bulma.button.button [
+                    prop.text "Stop"
+                    prop.onClick (fun _ ->
+                        if model.Playing then dispatch PlayPause
+                        dispatch Stop
+                    )
+
+                ]
+            ]
+            Bulma.field.div [
+                Bulma.button.button [
+                    prop.text "Prev"
+                    prop.onClick (fun _ -> dispatch StepBackward)
+                ]
+                Bulma.button.button [
+                    prop.text "Next"
+                    prop.onClick (fun _ -> dispatch StepForward)
+                ]
             ]
         ]
    ]
@@ -186,24 +263,43 @@ let view (model: Model) (dispatch: Msg -> unit) =
         prop.style [
             style.backgroundSize "cover"
             // style.backgroundImageUrl "https://unsplash.it/1200/900?random"
+            style.backgroundColor "#333333"
             style.backgroundPosition "no-repeat center center fixed"
         ]
         prop.children [
-            Bulma.heroHead [
-                Bulma.navbar [ Bulma.container [ navBrand ] ]
-            ]
             Bulma.heroBody [ Bulma.container [
+                Bulma.heroHead [
+                    Bulma.navbar [ Bulma.container [ navBrand ] ]
+                ]
+                Bulma.columns [
                 Bulma.column [
-                    column.is6
-                    column.isOffset3
+                    column.is8
+                    // column.isOffset1
                     prop.children [
                         Bulma.title [
                             text.hasTextCentered
-                            prop.text "foo"
+                            prop.text "Drifters"
+                        ]
+                        // containerBox model dispatch
+                        Bulma.field.div [
+                            prop.children [
+                                map model dispatch
+                            ]
+                        ]
+                    ]
+                ]
+                Bulma.column [
+                    column.is3
+                    prop.children [
+                        Bulma.title [
+                            text.hasTextCentered
+                            prop.text "Controls"
                         ]
                         containerBox model dispatch
                     ]
-                ] ]
+                ]
+            ]
+            ]
             ]
         ]
     ]
@@ -231,12 +327,14 @@ let app =
         React.useEffect (
             (fun _ ->
                 promise {
-                    do! Promise.sleep 100
-                    if model.CurrentFrame <= nFrames then
-                        SetFrame (model.CurrentFrame + 1) |> dispatch
+                    if model.Playing then
+                        do! Promise.sleep 100
+                        if model.CurrentFrame <= nFrames then
+                            SetFrame (model.CurrentFrame + 1) |> dispatch
+                        else ()
                     else ()
                 } |> Promise.start
-            ), [| model.CurrentFrame :> obj; nFrames :> obj |]
+            ), [| model.CurrentFrame :> obj; nFrames :> obj; model.Playing :> obj |]
         )
 
         Html.div [

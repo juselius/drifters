@@ -10,41 +10,34 @@ open Settings
 open UTM
 open Shared
 
-[<RequireQualifiedAccess>]
-type Msg =
+// [<RequireQualifiedAccess>]
+type Simulation = {
+    dt : float
+    stepT: float
+    startT: float
+    endT: float
+    particles: Particle array
+    grid: AdvectionGrid
+    dispatch: Inbox
+}
+and Msg =
     | GetFrame of int
     | GetNumFrames
     | PutParticles of (float * float) array
+    | SetSim of Simulation
+    | GetSim
+    | Start of Simulation
     | Reset
-
-[<RequireQualifiedAccess>]
-type Reply =
+    | Pause
+    | Continue
+    | Query
+and Reply =
     | Frame of (float * float) array
     | NumFrames of int
+    | Simulation of Simulation option
+    | IsRunning of bool
     | Empty
-
-type Inbox = MailboxProcessor<AsyncReplyChannel<Reply> * Msg>
-
-let track =
-    MailboxProcessor.Start (fun (inbox : Inbox) ->
-        let rec loop (particles : (float * float) array array) =
-            async {
-                match! inbox.Receive () with
-                | reply, Msg.GetNumFrames ->
-                    reply.Reply (Reply.NumFrames particles.Length)
-                    return! loop particles
-                | reply, Msg.GetFrame n ->
-                    reply.Reply (Reply.Frame particles.[n])
-                    return! loop particles
-                | reply, Msg.PutParticles p ->
-                    reply.Reply Reply.Empty
-                    return! loop (Array.append particles [| p |])
-                | reply, Msg.Reset ->
-                    reply.Reply Reply.Empty
-                    return! loop [||]
-            }
-        loop [||]
-    )
+and Inbox = MailboxProcessor<AsyncReplyChannel<Reply> * Msg>
 
 let rec move (grid: AdvectionGrid) (field: Field) dt (p: Particle) =
     match p.Elem with
@@ -98,35 +91,109 @@ let advect uv dt grid particles =
     // |> Array.filter (fun x -> x.Elem < 0)
     |> Array.map (move grid uv dt)
 
-let runSimulation (dt: float) time =
-    // let p = 438441.812500, 7548383.500000
-    let p = fromLatLon (68.05, 13.6)
-    let grid = readGrid appsettings.grid
-    let particles = initParticles grid 1000 p
+let writePosData p t =
+    let ps =
+        p |> Array.map (fun x-> sprintf "%f %f" (fst x.Pos) (snd x.Pos))
+        |> Array.fold (fun a x -> a + x + "\n") ""
+    IO.File.WriteAllText (sprintf "output/pos-%d.dat" (int t),  ps)
+    sprintf "Wrote pos-%d.dat" (int t) |> Log.Information
 
-    IO.Directory.CreateDirectory "output" |> ignore
+let readUV t step =
+    let n = t / step |> int
+    sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
+    readUV appsettings.uv n
 
+let postParticles p (dispatch: Inbox) =
+    let pll = p |> Array.map (fun x-> toLatLon x.Pos)
+    dispatch.PostAndReply (fun r -> r, Msg.PutParticles pll) |> ignore
+
+let runSimulation (sim: Simulation) =
     Array.unfold (fun (t, uv, (p: Particle array)) ->
         sprintf "Num particles %d" p.Length |> Log.Debug
+        let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
         let uv' =
-            let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
-            if (t' % 3600.0) = 0.0 && t' < time then
-                let ps =
-                    p |> Array.map (fun x->
-                        sprintf "%f %f" (fst x.Pos) (snd x.Pos))
-                    |> Array.fold (fun a x -> a + x + "\n") ""
-                IO.File.WriteAllText (sprintf "output/pos-%d.dat" (int t),  ps)
-                sprintf "Wrote pos-%d.dat" (int t) |> Log.Information
-                let pll = p |> Array.map (fun x-> toLatLon x.Pos)
-                track.PostAndReply (fun r -> r, Msg.PutParticles pll) |> ignore
-                let n = t' / 3600.0 |> int
-                sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
-                readUV appsettings.uv n
+            if (t' % sim.stepT) = 0.0 && t' < sim.endT then
+                writePosData p (int t)
+                postParticles p sim.dispatch
+                readUV t' sim.stepT
             else uv
-        if t <= time then
+        let isRunning =
+            if (t % sim.stepT) = 0.0 then
+                // sim.dispatch.PostAndReply (fun r -> r, Result sim)
+                true
+            else
+                true
+        if t <= sim.endT && isRunning then
             printfn "t=%f s" t
-            let p' = advect uv' dt grid p
-            Some (p'.Length, (t + dt, uv', p'))
-        else None
-    ) (0.0, [||], particles)
+            let p' = advect uv' sim.dt sim.grid p
+            let sim' =
+                { sim with
+                    particles = p'
+                    startT = t
+                }
+            Some ((), (t + sim.dt, uv', p'))
+        else
+            // sim.dispatch.PostAndReply (fun r -> r, Result sim)
+            None
+    ) (0.0, [||], sim.particles)
 
+type private State = {
+    particles: (float * float) array array
+    sim: Simulation option
+    running: bool
+}
+
+let track =
+    MailboxProcessor.Start (fun (inbox : Inbox) ->
+        let rec loop (state: State) =
+            let particles = state.particles
+            async {
+                let! reply, msg = inbox.Receive ()
+                let state' =
+                    match msg with
+                    | Msg.GetNumFrames ->
+                        reply.Reply (Reply.NumFrames particles.Length)
+                        state
+                    | Msg.GetFrame n ->
+                        reply.Reply (Reply.Frame particles.[n])
+                        state
+                    | Msg.PutParticles p ->
+                        reply.Reply Reply.Empty
+                        { state with particles = (Array.append particles [| p |]) }
+                    | Msg.Continue ->
+                        match state.sim with
+                        | Some sim -> inbox.PostAndReply (fun r -> r, (Start sim)) |> ignore
+                        | None -> ()
+                        reply.Reply Reply.Empty
+                        state
+                    | Msg.Start sim ->
+                        if state.running then
+                            reply.Reply Reply.Empty
+                            state
+                        else
+                            async { return runSimulation sim |> ignore } |> Async.Start
+                            reply.Reply Reply.Empty
+                            { state with sim = Some sim; running = true }
+                    | Msg.Pause ->
+                        reply.Reply Reply.Empty
+                        { state with running = false }
+                    | Msg.Reset ->
+                        reply.Reply Reply.Empty
+                        { sim = None; particles = [||]; running = false }
+                    | SetSim sim ->
+                        reply.Reply Reply.Empty
+                        { state with sim = Some sim }
+                    | GetSim ->
+                        reply.Reply (Reply.Simulation state.sim)
+                        state
+                    | Query ->
+                        reply.Reply (Reply.IsRunning state.running)
+                        state
+                return! loop state'
+            }
+        loop {
+            particles = Array.empty
+            sim = None
+            running = false
+        }
+    )
