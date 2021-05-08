@@ -119,8 +119,9 @@ let runSimulation (sim: Simulation) =
             else uv
         let isRunning =
             if (t % sim.stepT) = 0.0 then
-                // sim.dispatch.PostAndReply (fun r -> r, Result sim)
-                true
+                match sim.dispatch.PostAndReply (fun r -> r, Query) with
+                | IsRunning yesno -> yesno
+                | _ -> failwith "Unexpected reply"
             else
                 true
         if t <= sim.endT && isRunning then
@@ -143,7 +144,7 @@ type private State = {
     running: bool
 }
 
-let track =
+let controller () =
     MailboxProcessor.Start (fun (inbox : Inbox) ->
         let rec loop (state: State) =
             let particles = state.particles
@@ -162,10 +163,13 @@ let track =
                         { state with particles = (Array.append particles [| p |]) }
                     | Msg.Continue ->
                         match state.sim with
-                        | Some sim -> inbox.PostAndReply (fun r -> r, (Start sim)) |> ignore
-                        | None -> ()
-                        reply.Reply Reply.Empty
-                        state
+                        | Some sim -> //inbox.PostAndReply (fun r -> r, (Start sim)) |> ignore
+                            async { return runSimulation sim |> ignore } |> Async.Start
+                            reply.Reply Reply.Empty
+                            { state with running = true }
+                        | None ->
+                            reply.Reply Reply.Empty
+                            state
                     | Msg.Start sim ->
                         if state.running then
                             reply.Reply Reply.Empty
@@ -197,3 +201,5 @@ let track =
             running = false
         }
     )
+
+let track = controller ()

@@ -19,7 +19,7 @@ let gridWGS = { grid with Nodes = grid.Nodes |> Array.map UTM.toLatLon }
 let p = UTM.fromLatLon (68.05, 13.6)
 let particles = Particle.initParticles grid 1000 p
 
-printfn "Run simulation"
+// printfn "Run simulation"
 let sim : Advect.Simulation = {
     dt = appsettings.dt
     stepT = 3600.0
@@ -30,15 +30,15 @@ let sim : Advect.Simulation = {
     dispatch = Advect.track
 }
 Directory.CreateDirectory "output" |> ignore
-let restart = Advect.runSimulation sim
+// let restart = Advect.runSimulation sim
 
-let numFrames =
+let numFrames () =
     let r  = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetNumFrames)
     match r with
     | Advect.Reply.NumFrames n -> n
     | _ -> failwith "Unexpexted reply"
 
-printfn "Number of available frames: %d" numFrames
+// printfn "Number of available frames: %d" numFrames
 
 let askFrame n =
     let r = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetFrame n)
@@ -46,12 +46,13 @@ let askFrame n =
     | Advect.Reply.Frame x -> x
     | _ -> failwith "Unexpexted reply"
 
-let private getGrid = json gridWGS
-let private getNumFrames = json numFrames
+let private getGrid () = json gridWGS
+let private getNumFrames () = json (numFrames ())
 let private getFrame n = json (askFrame n)
 
-let private getFrames =
-    [ numFrames - 1 .. -1 .. 0 ]
+let private getFrames () =
+    let nf = numFrames ()
+    [ nf - 1 .. -1 .. 0 ]
     |> List.fold (fun a n -> askFrame n :: a) []
     |> json
 
@@ -64,49 +65,49 @@ let private setSim (next: HttpFunc) (ctx: HttpContext) =
 
 let private startSim (next: HttpFunc) (ctx: HttpContext) =
     task {
-        let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
+        // let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
         Advect.track.PostAndReply (fun r -> r, Advect.Start sim) |> ignore
         return! Successful.OK () next ctx
     }
 
-let private isRunning =
+let private isRunning () =
     match Advect.track.PostAndReply (fun r -> r, Advect.Query) with
     | Advect.IsRunning running -> json running
     | _ -> failwith "Unexpexted reply"
 
-let private getSim =
+let private getSim () =
     match Advect.track.PostAndReply (fun r -> r, Advect.GetSim) with
     | Advect.Simulation sim -> json sim
     | _ -> failwith "Unexpexted reply"
 
-let private pauseSim =
+let private pauseSim () =
     Advect.track.PostAndReply (fun r -> r, Advect.Pause) |> ignore
     Successful.OK ()
 
-let private continueSim =
+let private continueSim () =
     Advect.track.PostAndReply (fun r -> r, Advect.Continue) |> ignore
     Successful.OK ()
 
-let private resetSim =
+let private resetSim () =
     Advect.track.PostAndReply (fun r -> r, Advect.Reset) |> ignore
     Successful.OK ()
 
 let webApp =
     choose [
         GET >=> choose [
-            route "/api/getGrid" >=> getGrid
-            route "/api/getNumFrames" >=> getNumFrames
+            route "/api/getGrid" >=> warbler (fun _ -> getGrid ())
+            route "/api/getNumFrames" >=> warbler (fun _ -> getNumFrames ())
             routef "/api/getFrame/%i" getFrame
-            route "/api/getFrames" >=> getFrames
-            route "/api/isRunning" >=> isRunning
-            route "/api/getSimulation" >=> getSim
-            route "/api/pauseSimulation" >=> pauseSim
-            route "/api/continueSimulation" >=> continueSim
-            route "/api/resetSimulation" >=> resetSim
+            route "/api/getFrames" >=> warbler (fun _ -> getFrames ())
+            route "/api/isRunning" >=> warbler (fun _ -> isRunning ())
+            route "/api/getSimulation" >=> warbler (fun _ -> getSim ())
+            route "/api/pauseSimulation" >=> warbler (fun _ -> pauseSim ())
+            route "/api/resumeSimulation" >=> warbler (fun _ -> continueSim ())
+            route "/api/resetSimulation" >=> warbler (fun _ -> resetSim ())
         ]
         POST >=> choose [
             route "/api/setSimulation" >=> setSim
-            route "/api/startSimulation" >=> setSim
+            route "/api/startSimulation" >=> startSim
         ]
     ]
 
