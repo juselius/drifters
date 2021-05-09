@@ -21,9 +21,9 @@ let particles = Particle.initParticles grid 250 p
 
 // printfn "Run simulation"
 let sim : Advect.Simulation = {
+    t = 0.0
     dt = appsettings.dt
     stepT = 3600.0
-    startT = 0.0
     endT = 200.0 * 3600.0
     grid = grid
     particles = particles
@@ -103,7 +103,7 @@ let private resetSim () =
 
 let private stepFrame () =
     match Advect.track.PostAndReply (fun r -> r, Advect.Step) with
-    | Advect.Frame p -> json p
+    | Advect.Frame p -> json (p |> Array.map UTM.toLatLon)
     | _ -> failwith "Unexpexted reply"
 
 let webApp =
@@ -123,7 +123,7 @@ let webApp =
         POST >=> choose [
             route "/api/setSimulation" >=> setSim
             route "/api/startSimulation" >=> startSim
-            route "/api/injextParticles" >=> injectParticles
+            route "/api/injectParticles" >=> injectParticles
         ]
     ]
 

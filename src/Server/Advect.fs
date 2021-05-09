@@ -12,9 +12,9 @@ open Shared
 
 // [<RequireQualifiedAccess>]
 type Simulation = {
+    t : float
     dt : float
     stepT: float
-    startT: float
     endT: float
     particles: Particle array
     grid: AdvectionGrid
@@ -114,11 +114,11 @@ let avectStep (sim: Simulation) uv =
         if (t % sim.stepT) = 0.0 then
             { sim with
                 particles = p'
-                stepT = t + sim.dt
+                t = t + sim.dt
             }
         else
             loop (t + sim.dt) p'
-    loop sim.stepT sim.particles
+    loop sim.t sim.particles
     // sim.dispatch.PostAndReply (fun r -> r, Result sim)
 
 type private State = {
@@ -134,18 +134,13 @@ let controller () =
             let particles = state.particles
 
             let doStep sim =
-                let t = sim.stepT
+                let t = sim.t
                 let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
-                let uv' =
-                    match state.uv with
-                    | Some uv ->
-                        if (t' % sim.stepT) = 0.0 && t' < sim.endT then
-                            readUV t' sim.stepT
-                        else uv
-                    | None -> readUV t' sim.stepT
-                let sim' = avectStep sim uv'
+                printfn "t %A" (t, t')
+                let uv = readUV t' sim.stepT
+                let sim' = avectStep sim uv
                 writePosData sim'.particles (int t)
-                sim', uv'
+                sim', uv
 
             async {
                 let! reply, msg = inbox.Receive ()
