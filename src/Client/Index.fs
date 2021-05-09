@@ -42,6 +42,18 @@ type Msg =
     | PlayPause
     | Stop
 
+let decodeUnit : Decoder<unit> = Decode.Auto.generateDecoder ()
+let decodeInt : Decoder<int> = Decode.Auto.generateDecoder ()
+let decodeFrame : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
+
+let initSim dispatch =
+    promise {
+        do! Fetch.fetchAs (url="/api/resetSimulation", decoder=decodeUnit)
+        do! Fetch.post (url="/api/setSimulation", data=(), decoder=decodeUnit)
+        let! p = Fetch.fetchAs (url="/api/stepFrame", decoder = decodeFrame)
+        dispatch (AddParticles p)
+    } |> Promise.start
+
 let getGrid dispatch =
     let decoder : Decoder<Grid> = Decode.Auto.generateDecoder ()
     promise {
@@ -49,7 +61,7 @@ let getGrid dispatch =
         dispatch (AddGrid x)
     } |> Promise.start
 
-let getParticles dispatch n =
+let getFrame dispatch n =
     let decoder : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
     let url = sprintf "/api/getFrame/%d" n
     promise {
@@ -63,6 +75,12 @@ let getFrames dispatch =
         let! p = Fetch.fetchAs (url="/api/getFrames", decoder = decoder)
         dispatch (AddFrames p)
     } |> Promise.start
+
+let injectParticles (ll: LatLng) =
+    let decoder : Decoder<unit> = Decode.Auto.generateDecoder ()
+    let latln = ll.lat, ll.lng
+    Fetch.post (url="/api/injectParticles", data=latln, decoder=decoder)
+    |> Promise.start
 
 let init () : Model  =
     {
@@ -90,8 +108,7 @@ let update (model: Model) (msg: Msg) : Model=
     | StepForward-> { model with CurrentFrame = if model.CurrentFrame < model.Particles.Length then model.CurrentFrame + 1 else model.CurrentFrame }
     | StepBackward-> { model with CurrentFrame = if model.CurrentFrame > 0 then model.CurrentFrame - 1 else model.CurrentFrame }
     | PlayPause-> { model with Playing = not model.Playing }
-    | Stop-> { model with CurrentFrame = 0 }
-
+    | Stop-> { model with Particles= [||]; CurrentFrame = 0 }
 
 let wmtsSource layer =
     "http://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?" +
@@ -118,7 +135,7 @@ let particle (pos: float * float) =
     let p = U3.Case3 pos
     RL.circle [
         RL.CircleProps.Custom ("center", p)
-        RL.CircleProps.Radius 10.
+        RL.CircleProps.Radius 30.
         RL.CircleProps.FillColor "blue"
         RL.CircleProps.Fill true
         RL.CircleProps.Weight 0.1
@@ -180,6 +197,7 @@ let map (model: Model) dispatch =
             MinWidth 400
         ]
         RL.MapProps.Center pos
+        RL.MapProps.OnClick (fun e -> injectParticles e.latlng)
     ] (
         [
             tile
@@ -239,6 +257,7 @@ let containerBox (model: Model) (dispatch: Msg -> unit) =
                     prop.onClick (fun _ ->
                         if model.Playing then dispatch PlayPause
                         dispatch Stop
+                        initSim dispatch
                     )
 
                 ]
@@ -312,29 +331,24 @@ let app =
         let initialModel = init ()
         let model, dispatch = React.useReducer(update, initialModel)
 
-        let nFrames, setNFrames = React.useState 0
-
-        let decoder : Decoder<int> = Decode.Auto.generateDecoder ()
-        React.useEffect ((fun _ -> getGrid dispatch), [||])
         React.useEffect (
             (fun _ ->
-                promise {
-                    let! p = Fetch.fetchAs (url="/api/getNumFrames", decoder = decoder)
-                    setNFrames p
-                } |> Promise.start
-                getFrames dispatch
+                getGrid dispatch
+                initSim dispatch
+                // getFrames dispatch
             ), [||])
         React.useEffect (
             (fun _ ->
                 promise {
                     if model.Playing then
                         do! Promise.sleep 100
-                        if model.CurrentFrame <= nFrames then
-                            SetFrame (model.CurrentFrame + 1) |> dispatch
-                        else ()
+                        printfn "frames %d %d" model.Particles.Length model.CurrentFrame
+                        let! p = Fetch.fetchAs (url="/api/stepFrame", decoder = decodeFrame)
+                        dispatch (AddParticles p)
+                        SetFrame (model.CurrentFrame + 1) |> dispatch
                     else ()
                 } |> Promise.start
-            ), [| model.CurrentFrame :> obj; nFrames :> obj; model.Playing :> obj |]
+            ), [| model.CurrentFrame :> obj; model.Playing :> obj |]
         )
 
         Html.div [
