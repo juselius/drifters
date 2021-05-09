@@ -17,14 +17,14 @@ let grid = Grid.readGrid appsettings.grid
 let gridWGS = { grid with Nodes = grid.Nodes |> Array.map UTM.toLatLon }
 
 let p = UTM.fromLatLon (68.05, 13.6)
-let particles = Particle.initParticles grid 1000 p
+let particles = Particle.initParticles grid 250 p
 
 // printfn "Run simulation"
 let sim : Advect.Simulation = {
     dt = appsettings.dt
     stepT = 3600.0
     startT = 0.0
-    endT = 300.0 * 3600.0
+    endT = 200.0 * 3600.0
     grid = grid
     particles = particles
     dispatch = Advect.track
@@ -32,7 +32,7 @@ let sim : Advect.Simulation = {
 Directory.CreateDirectory "output" |> ignore
 // let restart = Advect.runSimulation sim
 
-let numFrames () =
+let getNumFrames () =
     let r  = Advect.track.PostAndReply (fun r -> r, Advect.Msg.GetNumFrames)
     match r with
     | Advect.Reply.NumFrames n -> n
@@ -47,19 +47,19 @@ let askFrame n =
     | _ -> failwith "Unexpexted reply"
 
 let private getGrid () = json gridWGS
-let private getNumFrames () = json (numFrames ())
+let private getNFrames () = json (getNumFrames ())
 let private getFrame n = json (askFrame n)
 
 let private getFrames () =
-    let nf = numFrames ()
+    let nf = getNumFrames ()
     [ nf - 1 .. -1 .. 0 ]
     |> List.fold (fun a n -> askFrame n :: a) []
     |> json
 
 let private setSim (next: HttpFunc) (ctx: HttpContext) =
     task {
-        let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
-        Advect.track.PostAndReply (fun r -> r, Advect.SetSim sim) |> ignore
+        // let! sim = ctx.BindJsonAsync<Advect.Simulation> ()
+        Advect.track.PostAndReply (fun r -> r, Advect.SetSim (sim, None)) |> ignore
         return! Successful.OK () next ctx
     }
 
@@ -70,14 +70,23 @@ let private startSim (next: HttpFunc) (ctx: HttpContext) =
         return! Successful.OK () next ctx
     }
 
+let private injectParticles (next: HttpFunc) (ctx: HttpContext) =
+    task {
+        let! latln = ctx.BindJsonAsync<float * float> ()
+        let pos = UTM.fromLatLon latln
+        let p = Particle.initParticles grid 100 pos
+        Advect.track.PostAndReply (fun r -> r, Advect.InjectParticles p) |> ignore
+        return! Successful.OK () next ctx
+    }
+
 let private isRunning () =
-    match Advect.track.PostAndReply (fun r -> r, Advect.Query) with
+    match Advect.track.PostAndReply (fun r -> r, Advect.QueryRunning) with
     | Advect.IsRunning running -> json running
     | _ -> failwith "Unexpexted reply"
 
 let private getSim () =
     match Advect.track.PostAndReply (fun r -> r, Advect.GetSim) with
-    | Advect.Simulation sim -> json sim
+    | Advect.Simulation (sim, _) -> json sim
     | _ -> failwith "Unexpexted reply"
 
 let private pauseSim () =
@@ -85,19 +94,25 @@ let private pauseSim () =
     Successful.OK ()
 
 let private continueSim () =
-    Advect.track.PostAndReply (fun r -> r, Advect.Continue) |> ignore
+    Advect.track.PostAndReply (fun r -> r, Advect.Resume) |> ignore
     Successful.OK ()
 
 let private resetSim () =
     Advect.track.PostAndReply (fun r -> r, Advect.Reset) |> ignore
     Successful.OK ()
 
+let private stepFrame () =
+    match Advect.track.PostAndReply (fun r -> r, Advect.Step) with
+    | Advect.Frame p -> json p
+    | _ -> failwith "Unexpexted reply"
+
 let webApp =
     choose [
         GET >=> choose [
             route "/api/getGrid" >=> warbler (fun _ -> getGrid ())
-            route "/api/getNumFrames" >=> warbler (fun _ -> getNumFrames ())
+            route "/api/getNumFrames" >=> warbler (fun _ -> getNFrames ())
             routef "/api/getFrame/%i" getFrame
+            route "/api/stepFrame" >=> warbler (fun _ -> stepFrame ())
             route "/api/getFrames" >=> warbler (fun _ -> getFrames ())
             route "/api/isRunning" >=> warbler (fun _ -> isRunning ())
             route "/api/getSimulation" >=> warbler (fun _ -> getSim ())
@@ -108,18 +123,19 @@ let webApp =
         POST >=> choose [
             route "/api/setSimulation" >=> setSim
             route "/api/startSimulation" >=> startSim
+            route "/api/injextParticles" >=> injectParticles
         ]
     ]
 
 let configureSerilog () =
     LoggerConfiguration()
-        .MinimumLevel.Information()
+        // .MinimumLevel.Information()
         .WriteTo.Console()
         .CreateLogger()
 
 let serilog (logger : ILoggingBuilder) =
     logger
-        .SetMinimumLevel(LogLevel.Information)
+        .SetMinimumLevel(LogLevel.Warning)
         .AddSerilog() |> ignore
 
 let app =

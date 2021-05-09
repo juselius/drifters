@@ -23,18 +23,21 @@ type Simulation = {
 and Msg =
     | GetFrame of int
     | GetNumFrames
-    | PutParticles of (float * float) array
-    | SetSim of Simulation
+    | InjectParticles of Particle array
+    | AppendParticles of Particle array
+    | SetSim of Simulation * Field option
     | GetSim
     | Start of Simulation
     | Reset
     | Pause
-    | Continue
-    | Query
+    | Resume
+    | QueryRunning
+    | Step
+    | RunAsync
 and Reply =
     | Frame of (float * float) array
     | NumFrames of int
-    | Simulation of Simulation option
+    | Simulation of Simulation option * Field option
     | IsRunning of bool
     | Empty
 and Inbox = MailboxProcessor<AsyncReplyChannel<Reply> * Msg>
@@ -103,51 +106,47 @@ let readUV t step =
     sprintf "Read %s-%d.dat" appsettings.uv n |> Log.Information
     readUV appsettings.uv n
 
-let postParticles p (dispatch: Inbox) =
-    let pll = p |> Array.map (fun x-> toLatLon x.Pos)
-    dispatch.PostAndReply (fun r -> r, Msg.PutParticles pll) |> ignore
-
-let runSimulation (sim: Simulation) =
-    Array.unfold (fun (t, uv, (p: Particle array)) ->
+let avectStep (sim: Simulation) uv =
+    let rec loop  t (p: Particle array) =
         sprintf "Num particles %d" p.Length |> Log.Debug
-        let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
-        let uv' =
-            if (t' % sim.stepT) = 0.0 && t' < sim.endT then
-                writePosData p (int t)
-                postParticles p sim.dispatch
-                readUV t' sim.stepT
-            else uv
-        let isRunning =
-            if (t % sim.stepT) = 0.0 then
-                match sim.dispatch.PostAndReply (fun r -> r, Query) with
-                | IsRunning yesno -> yesno
-                | _ -> failwith "Unexpected reply"
-            else
-                true
-        if t <= sim.endT && isRunning then
-            printfn "t=%f s" t
-            let p' = advect uv' sim.dt sim.grid p
-            let sim' =
-                { sim with
-                    particles = p'
-                    startT = t
-                }
-            Some ((), (t + sim.dt, uv', p'))
+        printfn "t=%f s" t
+        let p' = advect uv sim.dt sim.grid p
+        if (t % sim.stepT) = 0.0 then
+            { sim with
+                particles = p'
+                stepT = t + sim.dt
+            }
         else
-            // sim.dispatch.PostAndReply (fun r -> r, Result sim)
-            None
-    ) (0.0, [||], sim.particles)
+            loop (t + sim.dt) p'
+    loop sim.stepT sim.particles
+    // sim.dispatch.PostAndReply (fun r -> r, Result sim)
 
 type private State = {
     particles: (float * float) array array
     sim: Simulation option
     running: bool
+    uv: Field option
 }
 
 let controller () =
     MailboxProcessor.Start (fun (inbox : Inbox) ->
         let rec loop (state: State) =
             let particles = state.particles
+
+            let doStep sim =
+                let t = sim.stepT
+                let t' = (t - t % 86400.0) / 84600.0  |> fun x -> t - x * 84600.0
+                let uv' =
+                    match state.uv with
+                    | Some uv ->
+                        if (t' % sim.stepT) = 0.0 && t' < sim.endT then
+                            readUV t' sim.stepT
+                        else uv
+                    | None -> readUV t' sim.stepT
+                let sim' = avectStep sim uv'
+                writePosData sim'.particles (int t)
+                sim', uv'
+
             async {
                 let! reply, msg = inbox.Receive ()
                 let state' =
@@ -158,39 +157,81 @@ let controller () =
                     | Msg.GetFrame n ->
                         reply.Reply (Reply.Frame particles.[n])
                         state
-                    | Msg.PutParticles p ->
-                        reply.Reply Reply.Empty
-                        { state with particles = (Array.append particles [| p |]) }
-                    | Msg.Continue ->
+                    | Msg.InjectParticles p ->
                         match state.sim with
-                        | Some sim -> //inbox.PostAndReply (fun r -> r, (Start sim)) |> ignore
-                            async { return runSimulation sim |> ignore } |> Async.Start
+                        | Some s ->
+                            let s' = { s with particles = Array.append s.particles p }
                             reply.Reply Reply.Empty
-                            { state with running = true }
+                            { state with sim = Some s' }
                         | None ->
                             reply.Reply Reply.Empty
                             state
+                    | Msg.AppendParticles p ->
+                        let p' = p |> Array.map (fun (x: Particle) -> x.Pos)
+                        reply.Reply Reply.Empty
+                        { state with
+                            particles = Array.append state.particles [| p' |]
+                        }
+                    | Msg.Resume ->
+                        match state.running, state.sim with
+                        | false, Some sim ->
+                            async {
+                                inbox.PostAndReply (fun r -> r, RunAsync) |> ignore
+                            } |> Async.Start
+                        | _ -> ()
+                        reply.Reply Reply.Empty
+                        { state with running = true }
+                    | Msg.RunAsync ->
+                        match state.running, state.sim with
+                        | true, Some sim ->
+                            async {
+                                let s, uv = doStep sim
+                                inbox.PostAndReply (fun r -> r, SetSim (s, Some uv)) |> ignore
+                                inbox.PostAndReply (fun r -> r, AppendParticles s.particles ) |> ignore
+                                inbox.PostAndReply (fun r -> r, RunAsync) |> ignore
+                            } |> Async.Start
+                        | _ -> ()
+                        reply.Reply Reply.Empty
+                        state
                     | Msg.Start sim ->
-                        if state.running then
-                            reply.Reply Reply.Empty
+                        let state' =
+                            if not state.running then
+                                async {
+                                    inbox.PostAndReply (fun r -> r, SetSim (sim, None)) |> ignore
+                                    inbox.PostAndReply (fun r -> r, RunAsync) |> ignore
+                                } |> Async.Start
+                                { state with running = true }
+                            else state
+                        reply.Reply Reply.Empty
+                        state'
+                    | Msg.Step ->
+                        match state.sim with
+                        | Some sim ->
+                            let s, uv = doStep sim
+                            let p = s.particles |> Array.map (fun (x: Particle) -> x.Pos)
+                            reply.Reply (Reply.Frame p)
+                            { state with
+                                particles = Array.append state.particles [| p |]
+                                running = false
+                                sim = Some s
+                                uv = Some uv
+                            }
+                        | None ->
+                            reply.Reply (Reply.Frame [||])
                             state
-                        else
-                            async { return runSimulation sim |> ignore } |> Async.Start
-                            reply.Reply Reply.Empty
-                            { state with sim = Some sim; running = true }
                     | Msg.Pause ->
                         reply.Reply Reply.Empty
                         { state with running = false }
                     | Msg.Reset ->
                         reply.Reply Reply.Empty
-                        { sim = None; particles = [||]; running = false }
-                    | SetSim sim ->
+                        { sim = None; particles = [||]; running = false; uv = None }
+                    | SetSim (sim, uv) ->
                         reply.Reply Reply.Empty
-                        { state with sim = Some sim }
+                        { state with sim = Some sim; uv = uv }
                     | GetSim ->
-                        reply.Reply (Reply.Simulation state.sim)
+                        reply.Reply (Reply.Simulation (state.sim, None))
                         state
-                    | Query ->
+                    | QueryRunning ->
                         reply.Reply (Reply.IsRunning state.running)
                         state
                 return! loop state'
@@ -199,6 +240,7 @@ let controller () =
             particles = Array.empty
             sim = None
             running = false
+            uv = None
         }
     )
 
