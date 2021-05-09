@@ -26,6 +26,7 @@ type Model =
         ShowParticles: bool
         ShowTracks: bool
         Playing: bool
+        TrackIdx: int list
     }
 
 type Msg =
@@ -93,7 +94,14 @@ let init () : Model  =
         ShowParticles = true
         ShowTracks = false
         Playing = false
+        TrackIdx = []
     }
+
+let genTrackIdx (model: Model) n =
+    let m = Array.last model.Particles |> fun x -> x.Length
+    let s = m / n |> int
+    [0 .. s .. m ]
+
 
 let update (model: Model) (msg: Msg) : Model=
     match msg with
@@ -104,7 +112,7 @@ let update (model: Model) (msg: Msg) : Model=
     | SetFrame n -> { model with CurrentFrame = n }
     | ToggleGrid -> { model with ShowGrid = not model.ShowGrid }
     | ToggleParticles-> { model with ShowParticles = not model.ShowParticles }
-    | ToggleTracks-> { model with ShowTracks = not model.ShowTracks }
+    | ToggleTracks-> { model with ShowTracks = not model.ShowTracks; TrackIdx = genTrackIdx model 50 }
     | StepForward-> { model with CurrentFrame = if model.CurrentFrame < model.Particles.Length then model.CurrentFrame + 1 else model.CurrentFrame }
     | StepBackward-> { model with CurrentFrame = if model.CurrentFrame > 0 then model.CurrentFrame - 1 else model.CurrentFrame }
     | PlayPause-> { model with Playing = not model.Playing }
@@ -181,11 +189,16 @@ let renderParticles (particles: (float * float) array array) frame =
 
 let renderTrack (particles: (float * float) array array) frame n =
     if particles.Length > frame then
-        particles.[0..frame] |> Array.fold (fun a x -> x.[n] :: a) [] |> Array.ofList |> polyLine |> List.singleton
+        particles.[0 .. frame] |> Array.fold (fun a x ->
+            if x.Length > n then
+                x.[n] :: a
+            else
+                a
+        ) [] |> Array.ofList |> polyLine |> List.singleton
     else []
 
-let renderTracks particles frame n =
-    [0..n] |> List.collect (renderTrack particles frame)
+let renderTracks particles frame ix =
+    ix |> List.collect (renderTrack particles frame)
 
 let map (model: Model) dispatch =
     let frame = model.CurrentFrame
@@ -205,7 +218,7 @@ let map (model: Model) dispatch =
         ]
         @ if model.ShowGrid then renderGrid model.Grid else []
         @ if model.ShowParticles then renderParticles model.Particles frame else []
-        @ if model.ShowTracks then renderTracks model.Particles frame 40 else []
+        @ if model.ShowTracks then renderTracks model.Particles frame model.TrackIdx else []
 
     )
 
@@ -341,7 +354,7 @@ let app =
             (fun _ ->
                 promise {
                     if model.Playing then
-                        do! Promise.sleep 100
+                        do! Promise.sleep 200
                         printfn "frames %d %d" model.Particles.Length model.CurrentFrame
                         let! p = Fetch.fetchAs (url="/api/stepFrame", decoder = decodeFrame)
                         dispatch (AddParticles p)
