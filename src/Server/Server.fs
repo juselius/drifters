@@ -16,8 +16,8 @@ printfn "Create grid"
 let grid = Grid.readGrid appsettings.grid
 let gridWGS = { grid with Nodes = grid.Nodes |> Array.map UTM.toLatLon }
 
-let p = UTM.fromLatLon (68.05, 13.6)
-let particles = Particle.initParticles grid 250 p
+let p = UTM.fromLatLon (68.02, 13.50)
+let particles = Particle.initParticles grid 100 p
 
 // printfn "Run simulation"
 let sim : Advect.Simulation = {
