@@ -4,28 +4,36 @@ open System.IO
 open Thoth.Json.Net
 open Serilog
 
-type Settings = {
-    exampleSetting: string
-    grid: string
-    particles: string
-    uv: string
-    dt: float
-    minDt: float
-}
+type Settings =
+    {
+        exampleSetting: string
+        grid: string
+        particles: string
+        uv: string
+        dt: float
+        minDt: float
+    }
 
-let tryGetEnv = System.Environment.GetEnvironmentVariable >> function null | "" -> None | x -> Some x
+let tryGetEnv =
+    System.Environment.GetEnvironmentVariable
+    >> function
+        | null
+        | "" -> None
+        | x -> Some x
 
 let appsettings =
     let settings = System.IO.File.ReadAllText "appsettings.json"
+
     match Decode.Auto.fromString<Settings> settings with
     | Ok s -> s
     | Error e -> failwith e
 
 let port =
     "SERVER_PORT"
-    |> tryGetEnv |> Option.map uint16 |> Option.defaultValue 8085us
+    |> tryGetEnv
+    |> Option.map uint16
+    |> Option.defaultValue 8085us
 
-let listenAddress =
-    "http://0.0.0.0:" + port.ToString ()
+let listenAddress = "http://0.0.0.0:" + port.ToString()
 
 sprintf "Here we go again..." |> Log.Information

@@ -8,4 +8,4 @@ open Feliz
 importAll "./public/style.scss"
 importAll "../../node_modules/leaflet/dist/leaflet.css"
 
-ReactDOM.render(Index.app (), document.getElementById "feliz-app")
+ReactDOM.render (Index.app (), document.getElementById "feliz-app")

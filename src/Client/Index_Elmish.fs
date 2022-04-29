@@ -7,10 +7,7 @@ open Thoth.Fetch
 open Thoth.Json
 open Shared
 
-type Model = {
-    Todos: Todo list
-    Input: string
-}
+type Model = { Todos: Todo list; Input: string }
 
 type Msg =
     | GotTodos of Todo list
@@ -21,26 +18,27 @@ type Msg =
 
 let init () : Model * Cmd<Msg> =
     let model = { Todos = []; Input = "" }
-    let decoder : Decoder<Todo list> = Decode.Auto.generateDecoder ()
+    let decoder: Decoder<Todo list> = Decode.Auto.generateDecoder ()
+
     let get () =
-        Fetch.fetchAs (url="/api/getTodos", decoder = decoder)
-    let cmd =
-        Cmd.OfPromise.perform get () GotTodos
+        Fetch.fetchAs (url = "/api/getTodos", decoder = decoder)
+
+    let cmd = Cmd.OfPromise.perform get () GotTodos
 
     model, cmd
 
 let addTodo model =
-        let todo = Todo.create model.Input
-        let decoder : Decoder<Todo> = Decode.Auto.generateDecoder ()
-        let post (data : Todo) =
-            Fetch.post (url="/api/addTodo", data = data, decoder = decoder)
-        let cmd = Cmd.OfPromise.perform post todo AddedTodo
-        { model with Input = "" }, cmd
+    let todo = Todo.create model.Input
+    let decoder: Decoder<Todo> = Decode.Auto.generateDecoder ()
+
+    let post (data: Todo) =
+        Fetch.post (url = "/api/addTodo", data = data, decoder = decoder)
+
+    let cmd = Cmd.OfPromise.perform post todo AddedTodo
+    { model with Input = "" }, cmd
 
 let addedTodo model todo =
-        { model with
-              Todos = model.Todos @ [ todo ]
-        }, Cmd.none
+    { model with Todos = model.Todos @ [ todo ] }, Cmd.none
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with

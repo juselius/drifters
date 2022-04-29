@@ -43,47 +43,59 @@ type Msg =
     | PlayPause
     | Stop
 
-let decodeUnit : Decoder<unit> = Decode.Auto.generateDecoder ()
-let decodeInt : Decoder<int> = Decode.Auto.generateDecoder ()
-let decodeFrame : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
+let decodeUnit: Decoder<unit> = Decode.Auto.generateDecoder ()
+let decodeInt: Decoder<int> = Decode.Auto.generateDecoder ()
+
+let decodeFrame: Decoder<(float * float) array> =
+    Decode.Auto.generateDecoder ()
 
 let initSim dispatch =
     promise {
-        do! Fetch.fetchAs (url="/api/resetSimulation", decoder=decodeUnit)
-        do! Fetch.post (url="/api/setSimulation", data=(), decoder=decodeUnit)
-        let! p = Fetch.fetchAs (url="/api/stepFrame", decoder = decodeFrame)
+        do! Fetch.fetchAs (url = "/api/resetSimulation", decoder = decodeUnit)
+        do! Fetch.post (url = "/api/setSimulation", data = (), decoder = decodeUnit)
+        let! p = Fetch.fetchAs (url = "/api/stepFrame", decoder = decodeFrame)
         dispatch (AddParticles p)
-    } |> Promise.start
-
-let getGrid dispatch =
-    let decoder : Decoder<Grid> = Decode.Auto.generateDecoder ()
-    promise {
-        let! x = Fetch.fetchAs (url="/api/getGrid", decoder = decoder)
-        dispatch (AddGrid x)
-    } |> Promise.start
-
-let getFrame dispatch n =
-    let decoder : Decoder<(float * float) array> = Decode.Auto.generateDecoder ()
-    let url = sprintf "/api/getFrame/%d" n
-    promise {
-        let! p = Fetch.fetchAs (url=url, decoder = decoder)
-        dispatch (AddParticles p)
-    } |> Promise.start
-
-let getFrames dispatch =
-    let decoder : Decoder<(float * float) array array> = Decode.Auto.generateDecoder ()
-    promise {
-        let! p = Fetch.fetchAs (url="/api/getFrames", decoder = decoder)
-        dispatch (AddFrames p)
-    } |> Promise.start
-
-let injectParticles (ll: LatLng) =
-    let decoder : Decoder<unit> = Decode.Auto.generateDecoder ()
-    let latln = ll.lat, ll.lng
-    Fetch.post (url="/api/injectParticles", data=latln, decoder=decoder)
+    }
     |> Promise.start
 
-let init () : Model  =
+let getGrid dispatch =
+    let decoder: Decoder<Grid> = Decode.Auto.generateDecoder ()
+
+    promise {
+        let! x = Fetch.fetchAs (url = "/api/getGrid", decoder = decoder)
+        dispatch (AddGrid x)
+    }
+    |> Promise.start
+
+let getFrame dispatch n =
+    let decoder: Decoder<(float * float) array> =
+        Decode.Auto.generateDecoder ()
+    let url = sprintf "/api/getFrame/%d" n
+
+    promise {
+        let! p = Fetch.fetchAs (url = url, decoder = decoder)
+        dispatch (AddParticles p)
+    }
+    |> Promise.start
+
+let getFrames dispatch =
+    let decoder: Decoder<(float * float) array array> =
+        Decode.Auto.generateDecoder ()
+
+    promise {
+        let! p = Fetch.fetchAs (url = "/api/getFrames", decoder = decoder)
+        dispatch (AddFrames p)
+    }
+    |> Promise.start
+
+let injectParticles (ll: LatLng) =
+    let decoder: Decoder<unit> = Decode.Auto.generateDecoder ()
+    let latln = ll.lat, ll.lng
+
+    Fetch.post (url = "/api/injectParticles", data = latln, decoder = decoder)
+    |> Promise.start
+
+let init () : Model =
     {
         CurrentUrl = []
         Input = ""
@@ -100,10 +112,10 @@ let init () : Model  =
 let genTrackIdx (model: Model) n =
     let m = Array.last model.Particles |> fun x -> x.Length
     let s = m / n |> int
-    [0 .. s .. m ]
+    [ 0..s..m ]
 
 
-let update (model: Model) (msg: Msg) : Model=
+let update (model: Model) (msg: Msg) : Model =
     match msg with
     | SetInput value -> { model with Input = value }
     | AddGrid grid -> { model with Grid = grid }
@@ -111,43 +123,64 @@ let update (model: Model) (msg: Msg) : Model=
     | AddFrames n -> { model with Particles = n }
     | SetFrame n -> { model with CurrentFrame = n }
     | ToggleGrid -> { model with ShowGrid = not model.ShowGrid }
-    | ToggleParticles-> { model with ShowParticles = not model.ShowParticles }
-    | ToggleTracks-> { model with ShowTracks = not model.ShowTracks; TrackIdx = genTrackIdx model 50 }
-    | StepForward-> { model with CurrentFrame = if model.CurrentFrame < model.Particles.Length then model.CurrentFrame + 1 else model.CurrentFrame }
-    | StepBackward-> { model with CurrentFrame = if model.CurrentFrame > 0 then model.CurrentFrame - 1 else model.CurrentFrame }
-    | PlayPause-> { model with Playing = not model.Playing }
-    | Stop-> { model with Particles= [||]; CurrentFrame = 0 }
+    | ToggleParticles -> { model with ShowParticles = not model.ShowParticles }
+    | ToggleTracks ->
+        { model with
+            ShowTracks = not model.ShowTracks
+            TrackIdx = genTrackIdx model 50
+        }
+    | StepForward ->
+        { model with
+            CurrentFrame =
+                if model.CurrentFrame < model.Particles.Length then
+                    model.CurrentFrame + 1
+                else
+                    model.CurrentFrame
+        }
+    | StepBackward ->
+        { model with
+            CurrentFrame =
+                if model.CurrentFrame > 0 then
+                    model.CurrentFrame - 1
+                else
+                    model.CurrentFrame
+        }
+    | PlayPause -> { model with Playing = not model.Playing }
+    | Stop -> { model with Particles = [||]; CurrentFrame = 0 }
 
 let wmtsSource layer =
-    "http://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?" +
-        "&layer=" + layer +
-        "&style=default" +
-        "&tilematrixset=EPSG%3A3857" +
-        "&Service=WMTS" +
-        "&Request=GetTile" +
-        "&Version=1.0.0" +
-        "&Format=image%2Fpng" +
-        "&TileMatrix=EPSG%3A3857:{z}" +
-        "&TileCol={x}" +
-        "&TileRow={y}"
+    "http://opencache.statkart.no/gatekeeper/gk/gk.open_wmts?"
+    + "&layer="
+    + layer
+    + "&style=default"
+    + "&tilematrixset=EPSG%3A3857"
+    + "&Service=WMTS"
+    + "&Request=GetTile"
+    + "&Version=1.0.0"
+    + "&Format=image%2Fpng"
+    + "&TileMatrix=EPSG%3A3857:{z}"
+    + "&TileCol={x}"
+    + "&TileRow={y}"
 
 let osm = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 
 let tile =
     RL.tileLayer [
-        RL.TileLayerProps.Url (wmtsSource "norgeskart_bakgrunn")
-        RL.TileLayerProps.Attribution "&amp;copy <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
-    ] []
+                     RL.TileLayerProps.Url(wmtsSource "norgeskart_bakgrunn")
+                     RL.TileLayerProps.Attribution
+                         "&amp;copy <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
+                 ] []
 
 let particle (pos: float * float) =
     let p = U3.Case3 pos
+
     RL.circle [
-        RL.CircleProps.Custom ("center", p)
-        RL.CircleProps.Radius 30.
-        RL.CircleProps.FillColor "blue"
-        RL.CircleProps.Fill true
-        RL.CircleProps.Weight 0.1
-    ] []
+                  RL.CircleProps.Custom("center", p)
+                  RL.CircleProps.Radius 30.
+                  RL.CircleProps.FillColor "blue"
+                  RL.CircleProps.Fill true
+                  RL.CircleProps.Weight 0.1
+              ] []
 
 let triangle (a, b, c) =
     let p =
@@ -156,82 +189,96 @@ let triangle (a, b, c) =
             U3.Case3 b
             U3.Case3 c
         |]
+
     RL.polygon [
-        RL.PolygonProps.Positions p
-        RL.PolygonProps.FillColor "white"
-        RL.PolygonProps.Fill false
-        RL.PolygonProps.Weight 1.2
-    ] []
+                   RL.PolygonProps.Positions p
+                   RL.PolygonProps.FillColor "white"
+                   RL.PolygonProps.Fill false
+                   RL.PolygonProps.Weight 1.2
+               ] []
 
 let polyLine (track: (float * float) array) =
     let p = track |> Array.map U3.Case3 |> U3.Case1
-    RL.polyline [
-        RL.PolylineProps.Positions p
-        RL.PolylineProps.Fill false
-        RL.PolylineProps.Weight 0.5
-    ] []
 
-let renderGrid (grid : Grid) =
+    RL.polyline [
+                    RL.PolylineProps.Positions p
+                    RL.PolylineProps.Fill false
+                    RL.PolylineProps.Weight 0.5
+                ] []
+
+let renderGrid (grid: Grid) =
     if grid.Elem.Length > 0 then
         grid.Elem
-        |> Array. map (fun (a, b, c) ->
-            triangle (grid.Nodes.[a], grid.Nodes.[b], grid.Nodes.[c])
-        )
+        |> Array.map (fun (a, b, c) -> triangle (grid.Nodes.[a], grid.Nodes.[b], grid.Nodes.[c]))
         |> List.ofArray
-    else []
+    else
+        []
 
 let renderParticles (particles: (float * float) array array) frame =
     if particles.Length > frame then
         particles.[frame]
         |> Array.map particle
         |> List.ofArray
-    else []
+    else
+        []
 
 let renderTrack (particles: (float * float) array array) frame n =
     if particles.Length > frame then
-        particles.[0 .. frame] |> Array.fold (fun a x ->
-            if x.Length > n then
-                x.[n] :: a
-            else
-                a
-        ) [] |> Array.ofList |> polyLine |> List.singleton
-    else []
+        particles.[0..frame]
+        |> Array.fold (fun a x -> if x.Length > n then x.[n] :: a else a) []
+        |> Array.ofList
+        |> polyLine
+        |> List.singleton
+    else
+        []
 
 let renderTracks particles frame ix =
     ix |> List.collect (renderTrack particles frame)
 
 let map (model: Model) dispatch =
     let frame = model.CurrentFrame
-    let pos = U3.Case3 (68.1, 13.4)
-    RL.map [
-        RL.MapProps.Zoom 9.
-        RL.MapProps.Style [
-            Height 600
-            MinWidth 400
-        ]
-        RL.MapProps.Center pos
-        RL.MapProps.OnClick (fun e -> injectParticles e.latlng)
-    ] (
-        [
-            tile
-            // particle (68.05, 13.6)
-        ]
-        @ if model.ShowGrid then renderGrid model.Grid else []
-        @ if model.ShowParticles then renderParticles model.Particles frame else []
-        @ if model.ShowTracks then renderTracks model.Particles frame model.TrackIdx else []
+    let pos = U3.Case3(68.1, 13.4)
 
-    )
+    RL.map
+        [
+            RL.MapProps.Zoom 9.
+            RL.MapProps.Style [
+                Height 600
+                MinWidth 400
+            ]
+            RL.MapProps.Center pos
+            RL.MapProps.OnClick(fun e -> injectParticles e.latlng)
+        ]
+        ([
+            tile
+         // particle (68.05, 13.6)
+         ]
+         @ if model.ShowGrid then renderGrid model.Grid else []
+           @ if model.ShowParticles then
+                 renderParticles model.Particles frame
+             else
+                 []
+             @ if model.ShowTracks then
+                   renderTracks model.Particles frame model.TrackIdx
+               else
+                   []
+
+        )
 
 let navBrand =
     Bulma.navbarBrand.div [
         Bulma.navbarItem.a [
-            prop.style [ style.backgroundColor "#404040" ]
+            prop.style [
+                style.backgroundColor "#404040"
+            ]
             prop.href "https://safe-stack.github.io/"
             navbarItem.isActive
-            prop.children [ Html.img [
-                prop.src "/favicon.png"
-                prop.alt "Logo"
-            ] ]
+            prop.children [
+                Html.img [
+                    prop.src "/favicon.png"
+                    prop.alt "Logo"
+                ]
+            ]
         ]
     ]
 
@@ -270,10 +317,9 @@ let containerBox (model: Model) (dispatch: Msg -> unit) =
                     prop.onClick (fun _ ->
                         if model.Playing then dispatch PlayPause
                         dispatch Stop
-                        initSim dispatch
-                    )
+                        initSim dispatch)
 
-                ]
+                    ]
             ]
             Bulma.field.div [
                 Bulma.button.button [
@@ -286,7 +332,7 @@ let containerBox (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
         ]
-   ]
+    ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     Bulma.hero [
@@ -299,69 +345,74 @@ let view (model: Model) (dispatch: Msg -> unit) =
             style.backgroundPosition "no-repeat center center fixed"
         ]
         prop.children [
-            Bulma.heroBody [ Bulma.container [
-                Bulma.heroHead [
-                    Bulma.navbar [ Bulma.container [ navBrand ] ]
-                ]
-                Bulma.columns [
-                Bulma.column [
-                    column.is8
-                    // column.isOffset1
-                    prop.children [
-                        Bulma.title [
-                            text.hasTextCentered
-                            prop.text "Drifters"
+            Bulma.heroBody [
+                Bulma.container [
+                    Bulma.heroHead [
+                        Bulma.navbar [
+                            Bulma.container [ navBrand ]
                         ]
-                        // containerBox model dispatch
-                        Bulma.field.div [
+                    ]
+                    Bulma.columns [
+                        Bulma.column [
+                            column.is8
+                            // column.isOffset1
                             prop.children [
-                                map model dispatch
+                                Bulma.title [
+                                    text.hasTextCentered
+                                    prop.text "Drifters"
+                                ]
+                                // containerBox model dispatch
+                                Bulma.field.div [
+                                    prop.children [ map model dispatch ]
+                                ]
+                            ]
+                        ]
+                        Bulma.column [
+                            column.is3
+                            prop.children [
+                                Bulma.title [
+                                    text.hasTextCentered
+                                    prop.text "Controls"
+                                ]
+                                containerBox model dispatch
                             ]
                         ]
                     ]
                 ]
-                Bulma.column [
-                    column.is3
-                    prop.children [
-                        Bulma.title [
-                            text.hasTextCentered
-                            prop.text "Controls"
-                        ]
-                        containerBox model dispatch
-                    ]
-                ]
-            ]
-            ]
             ]
         ]
     ]
 
 let app =
     Fable.React.FunctionComponent.Of (fun () ->
-        let currentUrl, setUrl =
-            React.useState (Router.currentUrl())
+        let currentUrl, setUrl = React.useState (Router.currentUrl ())
 
         let initialModel = init ()
-        let model, dispatch = React.useReducer(update, initialModel)
+        let model, dispatch = React.useReducer (update, initialModel)
 
         React.useEffect (
             (fun _ ->
                 getGrid dispatch
                 initSim dispatch
                 // getFrames dispatch
-            ), [||])
+                ),
+            [||]
+        )
+
         React.useEffect (
             (fun _ ->
                 promise {
                     if model.Playing then
                         do! Promise.sleep 200
                         printfn "frames %d %d" model.Particles.Length model.CurrentFrame
-                        let! p = Fetch.fetchAs (url="/api/stepFrame", decoder = decodeFrame)
+                        let! p = Fetch.fetchAs (url = "/api/stepFrame", decoder = decodeFrame)
                         dispatch (AddParticles p)
-                        SetFrame (model.CurrentFrame + 1) |> dispatch
-                    else ()
-                } |> Promise.start
-            ), [| model.CurrentFrame :> obj; model.Playing :> obj |]
+                        SetFrame(model.CurrentFrame + 1) |> dispatch
+                    else
+                        ()
+                }
+                |> Promise.start),
+            [| model.CurrentFrame :> obj; model.Playing :> obj |]
         )
 
         Html.div [
@@ -370,5 +421,4 @@ let app =
             ]
             match currentUrl with
             | _ -> view model dispatch
-        ]
-    )
+        ])
